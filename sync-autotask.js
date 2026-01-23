@@ -47,7 +47,7 @@ async function syncFromAutotask() {
       WHERE c.email IS NULL
       AND EXISTS (
         SELECT 1 FROM contacts 
-        WHERE company_autotask_id = c.autotask_id 
+        WHERE company_id = c.autotask_id 
         AND email IS NOT NULL
       )
     `).all();
@@ -57,7 +57,7 @@ async function syncFromAutotask() {
     for (const company of companiesWithoutEmail) {
       const primaryContact = db.prepare(`
         SELECT * FROM contacts 
-        WHERE company_autotask_id = ? 
+        WHERE company_id = ? 
         AND email IS NOT NULL
         ORDER BY is_primary DESC, id ASC
         LIMIT 1
