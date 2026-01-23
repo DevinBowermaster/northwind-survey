@@ -84,6 +84,7 @@ async function getAllCompanies() {
     throw error;
   }
 }
+
 // Query contacts with pagination
 async function queryContacts(page = 1, pageSize = 500, lastContactId = null) {
   try {
