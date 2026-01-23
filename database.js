@@ -6,6 +6,8 @@ const db = new Database('northwind.db', { verbose: console.log });
 
 // Initialize database tables
 function initDatabase() {
+  // Drop old surveys table to recreate with new schema
+  db.exec(`DROP TABLE IF EXISTS surveys`);
   // Create clients table
   db.exec(`
     CREATE TABLE IF NOT EXISTS clients (
