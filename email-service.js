@@ -160,7 +160,8 @@ async function sendSurveysToManagedClients(clients) {
       // Generate token and survey link for each client
       const crypto = require('crypto');
       const token = crypto.randomBytes(32).toString('hex');
-      const surveyLink = `http://localhost:5173/survey/${token}`;
+      const frontendUrl = process.env.FRONTEND_URL || 'https://northwind-survey-frontend.onrender.com';
+      const surveyLink = `${frontendUrl}/survey/${token}`;
       
       // Create survey record in database
       const db = require('./database');
@@ -199,7 +200,8 @@ async function sendTestEmail(toEmail) {
 
     const crypto = require('crypto');
     const token = crypto.randomBytes(32).toString('hex');
-    const surveyLink = `http://localhost:5173/survey/${token}`;
+    const frontendUrl = process.env.FRONTEND_URL || 'https://northwind-survey-frontend.onrender.com';
+    const surveyLink = `${frontendUrl}/survey/${token}`;
 
     const result = await sendSurveyEmail(testClient, 'Test', surveyLink);
     console.log('✅ Test email sent successfully!');

@@ -443,6 +443,8 @@ app.get('/api/surveys/responses', (req, res) => {
 app.post('/api/surveys/send/:clientId', async (req, res) => {
   try {
     const clientId = req.params.clientId;
+    const { surveyType } = req.body; // Accept survey type from request
+    
     const client = db.prepare('SELECT * FROM clients WHERE id = ? OR autotask_id = ?').get(clientId, clientId);
     
     if (!client) {
@@ -453,15 +455,21 @@ app.post('/api/surveys/send/:clientId', async (req, res) => {
       return res.status(400).json({ error: 'Client has no email address' });
     }
     
+    // Default to Quarterly if not specified
+    const selectedSurveyType = surveyType || 'Quarterly';
+    
     const token = crypto.randomBytes(32).toString('hex');
     
     db.prepare(`
       INSERT INTO surveys (client_id, token, survey_type, sent_date)
       VALUES (?, ?, ?, datetime('now'))
-    `).run(client.id, token, 'Quarterly');
+    `).run(client.id, token, selectedSurveyType);
     
-    const surveyLink = `http://localhost:5173/survey/${token}`;
-    await emailService.sendSurveyEmail(client, 'Quarterly', surveyLink);
+    // Use frontend URL from environment or default
+    const frontendUrl = process.env.FRONTEND_URL || 'https://northwind-survey-frontend.onrender.com';
+    const surveyLink = `${frontendUrl}/survey/${token}`;
+    
+    await emailService.sendSurveyEmail(client, selectedSurveyType, surveyLink);
     
     db.prepare("UPDATE clients SET last_survey = datetime('now') WHERE id = ?").run(client.id);
     
