@@ -114,7 +114,36 @@ function seedDatabase() {
 
 // Initialize on import
 initDatabase();
-seedDatabase();
+// seedDatabase(); // Disabled - using real Autotask data
+
+// Seed survey templates if none exist
+function seedTemplates() {
+  const count = db.prepare('SELECT COUNT(*) as count FROM survey_templates').get();
+  
+  if (count.count === 0) {
+    console.log('🌱 Creating default survey template...');
+    
+    const questions = JSON.stringify([
+      { id: 1, text: "Overall satisfaction with our service", type: "rating" },
+      { id: 2, text: "How quickly we respond to your needs", type: "rating" },
+      { id: 3, text: "Technical knowledge of our team", type: "rating" },
+      { id: 4, text: "Quality of communication", type: "rating" },
+      { id: 5, text: "Would you recommend us?", type: "rating" },
+      { id: 6, text: "What do we do well?", type: "text" },
+      { id: 7, text: "What can we improve?", type: "text" },
+      { id: 8, text: "Additional comments", type: "text" }
+    ]);
+    
+    db.prepare(`
+      INSERT INTO survey_templates (name, type, questions, active)
+      VALUES (?, ?, ?, ?)
+    `).run('Quarterly Satisfaction Survey', 'Quarterly', questions, 1);
+    
+    console.log('✅ Default survey template created');
+  }
+}
+
+seedTemplates(); // <-- ADD THIS LINE
 
 // Export database instance
 module.exports = db;
