@@ -77,7 +77,7 @@ function App() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/stats/by-type');
+      const response = await fetch('https://northwind-survey-backend.onrender.com/api/stats/by-type');
       const data = await response.json();
       setStats(data);
     } catch (err) {
@@ -87,7 +87,7 @@ function App() {
 
   const fetchSurveyStatistics = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/surveys/statistics');
+      const response = await fetch('https://northwind-survey-backend.onrender.com/api/surveys/statistics');
       const data = await response.json();
       setSurveyStats(data.stats);
       setRecentResponses(data.recent_responses);
@@ -98,7 +98,7 @@ function App() {
 
   const fetchAllResponses = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/surveys/responses');
+      const response = await fetch('https://northwind-survey-backend.onrender.com/api/surveys/responses');
       const data = await response.json();
       setAllResponses(data);
     } catch (err) {
@@ -120,7 +120,7 @@ function App() {
 
   const fetchTemplates = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/survey-templates');
+      const response = await fetch('https://northwind-survey-backend.onrender.com/api/survey-templates');
       const data = await response.json();
       setSurveyTemplates(data);
     } catch (err) {
@@ -131,8 +131,8 @@ function App() {
   const saveTemplate = async (template) => {
     try {
       const url = template.id 
-        ? `http://localhost:3000/api/survey-templates/${template.id}`
-        : 'http://localhost:3000/api/survey-templates';
+        ? `https://northwind-survey-backend.onrender.com/api/survey-templates/${template.id}`
+        : 'https://northwind-survey-backend.onrender.com/api/survey-templates';
       
       const response = await fetch(url, {
         method: template.id ? 'PUT' : 'POST',
@@ -153,7 +153,7 @@ function App() {
 
   const fetchClientContacts = async (clientId) => {
     try {
-      const response = await fetch(`http://localhost:3000/api/clients/${clientId}/contacts`);
+      const response = await fetch(`https://northwind-survey-backend.onrender.com/api/clients/${clientId}/contacts`);
       const data = await response.json();
       setClientContacts(data);
     } catch (error) {
@@ -167,7 +167,7 @@ function App() {
     
     try {
       setSyncing(true);
-      const response = await fetch('http://localhost:3000/api/sync/companies', {
+      const response = await fetch('https://northwind-survey-backend.onrender.com/api/sync/companies', {
         method: 'POST'
       });
       const result = await response.json();
@@ -192,7 +192,7 @@ function App() {
     
     try {
       setSyncing(true);
-      const response = await fetch('http://localhost:3000/api/sync/contacts', {
+      const response = await fetch('https://northwind-survey-backend.onrender.com/api/sync/contacts', {
         method: 'POST'
       });
       const result = await response.json();
@@ -213,7 +213,7 @@ function App() {
 
   const setPrimaryContact = async (clientId, contactId) => {
     try {
-      const response = await fetch(`http://localhost:3000/api/clients/${clientId}/set-primary-contact`, {
+      const response = await fetch(`https://northwind-survey-backend.onrender.com/api/clients/${clientId}/set-primary-contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contactId })
@@ -1213,7 +1213,7 @@ function App() {
                         key={days}
                         onClick={async () => {
                           try {
-                            const response = await fetch(`http://localhost:3000/api/clients/${selectedClient.id || selectedClient.autotask_id}/schedule-survey`, {
+                            const response = await fetch(`https://northwind-survey-backend.onrender.com/api/clients/${selectedClient.id || selectedClient.autotask_id}/schedule-survey`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ days })
@@ -1245,7 +1245,7 @@ function App() {
                     <button
                       onClick={async () => {
                         try {
-                          const response = await fetch(`http://localhost:3000/api/clients/${selectedClient.id || selectedClient.autotask_id}/schedule-survey`, {
+                          const response = await fetch(`https://northwind-survey-backend.onrender.com/api/clients/${selectedClient.id || selectedClient.autotask_id}/schedule-survey`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ days: null })
@@ -1285,7 +1285,7 @@ function App() {
                     
                     if (confirm(`Send survey to ${selectedClient.email}?`)) {
                       try {
-                        const response = await fetch(`http://localhost:3000/api/surveys/send/${selectedClient.id || selectedClient.autotask_id}`, {
+                        const response = await fetch(`https://northwind-survey-backend.onrender.com/api/surveys/send/${selectedClient.id || selectedClient.autotask_id}`, {
                           method: 'POST'
                         });
                         const result = await response.json();
