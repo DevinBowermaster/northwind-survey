@@ -65,7 +65,7 @@ function App() {
   const fetchClients = async () => {
     try {
       setLoading(true);
-      const response = await fetch('https://surveys.northwind.us/api/api/clients');
+      const response = await fetch('https://northwind-survey-backend.onrender.com/api/clients');
       const data = await response.json();
       setClients(data);
       setLoading(false);
