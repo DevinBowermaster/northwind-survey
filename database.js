@@ -1,15 +1,16 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
+// Use persistent disk path in production, local file in development
+const dbPath = process.env.NODE_ENV === 'production' 
+  ? '/opt/render/project/src/data/northwind.db'
+  : 'northwind.db';
+
 // Create/open database file
-const db = new Database('northwind.db', { verbose: console.log });
+const db = new Database(dbPath, { verbose: console.log });
 
 // Initialize database tables
 function initDatabase() {
- // Drop old tables to recreate with new schema
-db.exec(`DROP TABLE IF EXISTS surveys`);
-db.exec(`DROP TABLE IF EXISTS contacts`);
-  
   // Create clients table
   db.exec(`
     CREATE TABLE IF NOT EXISTS clients (
@@ -112,10 +113,6 @@ function seedDatabase() {
   }
 }
 
-// Initialize on import
-initDatabase();
-// seedDatabase(); // Disabled - using real Autotask data
-
 // Seed survey templates if none exist
 function seedTemplates() {
   const count = db.prepare('SELECT COUNT(*) as count FROM survey_templates').get();
@@ -168,8 +165,10 @@ function seedTemplates() {
   }
 }
 
-
-seedTemplates(); // <-- ADD THIS LINE
+// Initialize on import
+initDatabase();
+// seedDatabase(); // Disabled - using real Autotask data
+seedTemplates();
 
 // Export database instance
 module.exports = db;
