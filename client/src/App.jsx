@@ -46,6 +46,7 @@ function App() {
   const [surveyTemplates, setSurveyTemplates] = useState([]);
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [previewingTemplate, setPreviewingTemplate] = useState(null);
+  const [selectedSurveyType, setSelectedSurveyType] = useState('Quarterly');
   const RESPONSES_PER_PAGE = 10;
 
   useEffect(() => {
@@ -1276,6 +1277,24 @@ function App() {
               </div>
 
               <div className="flex gap-3">
+                {/* Survey Template Selector */}
+                <div className="flex-1">
+                  <label className="block text-sm text-gray-400 mb-2">Survey Template</label>
+                  <select
+                    value={selectedSurveyType}
+                    onChange={(e) => setSelectedSurveyType(e.target.value)}
+                    className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
+                  >
+                    {surveyTemplates.map(template => (
+                      <option key={template.id} value={template.type}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-4">
                 <button 
                   onClick={async () => {
                     if (!selectedClient.email) {
@@ -1283,10 +1302,12 @@ function App() {
                       return;
                     }
                     
-                    if (confirm(`Send survey to ${selectedClient.email}?`)) {
+                    if (confirm(`Send ${selectedSurveyType} survey to ${selectedClient.email}?`)) {
                       try {
                         const response = await fetch(`https://northwind-survey-backend.onrender.com/api/surveys/send/${selectedClient.id || selectedClient.autotask_id}`, {
-                          method: 'POST'
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ surveyType: selectedSurveyType })
                         });
                         const result = await response.json();
                         

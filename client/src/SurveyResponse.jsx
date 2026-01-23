@@ -25,7 +25,7 @@ function SurveyResponse() {
 
   const fetchSurveyData = async () => {
     try {
-      const response = await fetch(`http://localhost:3000/api/survey/${token}`);
+      const response = await fetch(`https://northwind-survey-backend.onrender.com/api/survey/${token}`);
       const data = await response.json();
       
       if (data.error) {
@@ -54,7 +54,7 @@ function SurveyResponse() {
     }
     
     try {
-      const response = await fetch(`http://localhost:3000/api/survey/${token}/submit`, {
+      const response = await fetch(`https://northwind-survey-backend.onrender.com/api/survey/${token}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(responses)
