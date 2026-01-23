@@ -45,27 +45,14 @@ function initDatabase() {
     )
   `);
 
-  // Create surveys table
+  // Create surveys table (combined with response data)
   db.exec(`
     CREATE TABLE IF NOT EXISTS surveys (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       client_id INTEGER NOT NULL,
-      type TEXT NOT NULL,
-      score REAL NOT NULL,
-      comment TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (client_id) REFERENCES clients (id)
-    )
-  `);
-
-  // Create survey_responses table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS survey_responses (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      survey_token TEXT UNIQUE NOT NULL,
-      client_id INTEGER NOT NULL,
-      client_name TEXT,
+      token TEXT UNIQUE NOT NULL,
       survey_type TEXT DEFAULT 'Quarterly',
+      sent_date TEXT,
       overall_satisfaction INTEGER,
       response_time INTEGER,
       technical_knowledge INTEGER,
@@ -74,8 +61,9 @@ function initDatabase() {
       what_we_do_well TEXT,
       what_to_improve TEXT,
       additional_comments TEXT,
-      avg_score REAL,
       completed_date TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (client_id) REFERENCES clients (id)
     )
