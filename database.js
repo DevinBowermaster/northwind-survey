@@ -7,7 +7,7 @@ const dbPath = process.env.NODE_ENV === 'production'
   : 'northwind.db';
 
 // Create/open database file
-const db = new Database(dbPath, { verbose: console.log });
+const db = new Database(dbPath);
 
 // Initialize database tables
 function initDatabase() {
