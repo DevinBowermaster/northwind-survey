@@ -8,6 +8,7 @@ const db = new Database('northwind.db', { verbose: console.log });
 function initDatabase() {
   // Drop old surveys table to recreate with new schema
   db.exec(`DROP TABLE IF EXISTS surveys`);
+  
   // Create clients table
   db.exec(`
     CREATE TABLE IF NOT EXISTS clients (
@@ -41,6 +42,7 @@ function initDatabase() {
       phone TEXT,
       title TEXT,
       is_primary INTEGER DEFAULT 0,
+      is_active INTEGER DEFAULT 1,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (company_id) REFERENCES clients (autotask_id)
@@ -92,7 +94,7 @@ function seedDatabase() {
   const count = db.prepare('SELECT COUNT(*) as count FROM clients').get();
   
   if (count.count === 0) {
-    console.log('📝 Seeding database with sample data...');
+    console.log('🌱 Seeding database with sample data...');
     
     const insert = db.prepare(`
       INSERT INTO clients (name, contact_person, email, company_type, score, last_survey, next_survey, response_rate)
