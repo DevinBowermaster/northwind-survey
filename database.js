@@ -121,9 +121,9 @@ function seedTemplates() {
   const count = db.prepare('SELECT COUNT(*) as count FROM survey_templates').get();
   
   if (count.count === 0) {
-    console.log('🌱 Creating default survey template...');
+    console.log('🌱 Creating survey templates...');
     
-    const questions = JSON.stringify([
+    const quarterlyQuestions = JSON.stringify([
       { id: 1, text: "Overall satisfaction with our service", type: "rating" },
       { id: 2, text: "How quickly we respond to your needs", type: "rating" },
       { id: 3, text: "Technical knowledge of our team", type: "rating" },
@@ -134,14 +134,40 @@ function seedTemplates() {
       { id: 8, text: "Additional comments", type: "text" }
     ]);
     
-    db.prepare(`
+    const postTicketQuestions = JSON.stringify([
+      { id: 1, text: "How satisfied were you with the resolution?", type: "rating" },
+      { id: 2, text: "How quickly was your issue resolved?", type: "rating" },
+      { id: 3, text: "How would you rate the technician's knowledge?", type: "rating" },
+      { id: 4, text: "Quality of communication during resolution", type: "rating" },
+      { id: 5, text: "What went well?", type: "text" },
+      { id: 6, text: "What could be improved?", type: "text" }
+    ]);
+    
+    const postProjectQuestions = JSON.stringify([
+      { id: 1, text: "Overall satisfaction with the project outcome", type: "rating" },
+      { id: 2, text: "Project completed on time", type: "rating" },
+      { id: 3, text: "Project stayed within budget", type: "rating" },
+      { id: 4, text: "Quality of project management", type: "rating" },
+      { id: 5, text: "Technical execution quality", type: "rating" },
+      { id: 6, text: "Would you recommend us for similar projects?", type: "rating" },
+      { id: 7, text: "What aspects of the project went well?", type: "text" },
+      { id: 8, text: "What could we have done better?", type: "text" },
+      { id: 9, text: "Additional feedback", type: "text" }
+    ]);
+    
+    const insert = db.prepare(`
       INSERT INTO survey_templates (name, type, questions, active)
       VALUES (?, ?, ?, ?)
-    `).run('Quarterly Satisfaction Survey', 'Quarterly', questions, 1);
+    `);
     
-    console.log('✅ Default survey template created');
+    insert.run('Quarterly Check-in', 'Quarterly', quarterlyQuestions, 1);
+    insert.run('Post Ticket', 'Post-Ticket', postTicketQuestions, 1);
+    insert.run('Post Project', 'Post-Project', postProjectQuestions, 1);
+    
+    console.log('✅ Survey templates created (Quarterly, Post-Ticket, Post-Project)');
   }
 }
+
 
 seedTemplates(); // <-- ADD THIS LINE
 
