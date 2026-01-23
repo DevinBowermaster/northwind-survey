@@ -12,7 +12,9 @@ async function syncContactsFromAutotask() {
     
     while (hasMore) {
       console.log(`📥 Fetching page ${page}...`);
-      const response = await autotask.queryContacts(page, pageSize);
+      
+      const lastContactId = allContacts.length > 0 ? allContacts[allContacts.length - 1].id : null;
+      const response = await autotask.queryContacts(page, pageSize, lastContactId);
       
       if (response && response.items && response.items.length > 0) {
         allContacts = allContacts.concat(response.items);

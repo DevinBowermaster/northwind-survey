@@ -84,13 +84,19 @@ async function getAllCompanies() {
     throw error;
   }
 }
-
 // Query contacts with pagination
-async function queryContacts(page = 1, pageSize = 500) {
+async function queryContacts(page = 1, pageSize = 500, lastContactId = null) {
   try {
+    const filter = [{ op: 'exist', field: 'id' }];
+    
+    // Add pagination filter if we have a lastContactId
+    if (lastContactId) {
+      filter.push({ op: 'gt', field: 'id', value: lastContactId });
+    }
+    
     const params = {
       search: JSON.stringify({
-        filter: [{ op: 'exist', field: 'id' }],
+        filter: filter,
         MaxRecords: pageSize
       })
     };
