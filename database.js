@@ -70,6 +70,8 @@ function initDatabase() {
       completed_date TEXT,
       ip_address TEXT,
       user_agent TEXT,
+      archived INTEGER DEFAULT 0,
+      archived_date TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (client_id) REFERENCES clients (id)
     )
