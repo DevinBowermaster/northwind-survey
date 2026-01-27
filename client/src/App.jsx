@@ -727,23 +727,11 @@ function App() {
                           📧 Surveys Enabled
                         </span>
                       )}
-                      {(() => {
-                        // Check if there's a pending survey
-                        if (client.last_survey) {
-                          const lastSurveyDate = new Date(client.last_survey);
-                          const daysSinceSurvey = Math.floor((new Date() - lastSurveyDate) / (1000 * 60 * 60 * 24));
-                          
-                          // Show pending badge if survey was sent within last 90 days
-                          if (daysSinceSurvey >= 0 && daysSinceSurvey <= 90) {
-                            return (
-                              <span className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-600">
-                                ⏳ Pending Survey
-                              </span>
-                            );
-                          }
-                        }
-                        return null;
-                      })()}
+                      {client.has_pending_survey === 1 && (
+                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-600">
+                          ⏳ Pending Survey
+                        </span>
+                      )}
                       {client.contact_count > 0 && (
                         <span className="px-3 py-1 rounded-full text-xs font-medium bg-purple-600">
                           👥 {client.contact_count} {client.contact_count === 1 ? 'contact' : 'contacts'}

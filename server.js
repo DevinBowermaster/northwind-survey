@@ -33,21 +33,24 @@ app.get('/api/status', (req, res) => {
 // Get all clients
 app.get('/api/clients', (req, res) => {
   try {
-    const clients = db.prepare('SELECT * FROM clients').all();
+    const clients = db.prepare(`
+      SELECT 
+        c.*,
+        (SELECT COUNT(*) FROM contacts WHERE company_id = c.autotask_id) as contact_count,
+        CASE 
+          WHEN EXISTS (
+            SELECT 1 FROM surveys s 
+            WHERE s.client_id = c.id 
+            AND s.sent_date IS NOT NULL 
+            AND s.completed_date IS NULL
+            AND (s.archived = 0 OR s.archived IS NULL)
+          ) THEN 1 
+          ELSE 0 
+        END as has_pending_survey
+      FROM clients c
+    `).all();
     
-    // Add contact count to each client
-    const clientsWithCounts = clients.map(client => {
-      const contactCount = db.prepare(
-        'SELECT COUNT(*) as count FROM contacts WHERE company_id = ?'
-      ).get(client.autotask_id);
-      
-      return {
-        ...client,
-        contact_count: contactCount.count
-      };
-    });
-    
-    res.json(clientsWithCounts);
+    res.json(clients);
   } catch (error) {
     console.error('Database error:', error);
     res.status(500).json({ error: 'Failed to fetch clients' });
