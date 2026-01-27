@@ -47,6 +47,7 @@ function App() {
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [previewingTemplate, setPreviewingTemplate] = useState(null);
   const [selectedSurveyType, setSelectedSurveyType] = useState('Quarterly');
+  const [pendingSurveys, setPendingSurveys] = useState([]);
   const RESPONSES_PER_PAGE = 10;
 
   useEffect(() => {
@@ -60,6 +61,13 @@ function App() {
   useEffect(() => {
     if (activeView === 'responses') {
       fetchAllResponses();
+    }
+  }, [activeView]);
+
+  // Fetch pending surveys when switching to pending view
+  useEffect(() => {
+    if (activeView === 'pending') {
+      fetchPendingSurveys();
     }
   }, [activeView]);
 
@@ -104,6 +112,17 @@ function App() {
       setAllResponses(data);
     } catch (err) {
       console.error('Error fetching all responses:', err);
+    }
+  };
+
+  const fetchPendingSurveys = async () => {
+    try {
+      const response = await fetch('https://northwind-survey-backend.onrender.com/api/surveys/pending');
+      const data = await response.json();
+      setPendingSurveys(data.surveys || []);
+    } catch (err) {
+      console.error('Error fetching pending surveys:', err);
+      setPendingSurveys([]);
     }
   };
 
@@ -981,6 +1000,130 @@ function App() {
     );
   };
 
+  const renderPendingSurveys = () => {
+    const resendSurvey = async (surveyId) => {
+      if (!confirm('Resend survey email to this client?')) return;
+      
+      try {
+        const response = await fetch(`https://northwind-survey-backend.onrender.com/api/surveys/${surveyId}/resend`, {
+          method: 'POST'
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+          alert(`✅ ${result.message}`);
+          fetchPendingSurveys(); // Refresh the list
+          fetchSurveyStatistics(); // Update stats
+        } else {
+          alert(`❌ Error: ${result.error}`);
+        }
+      } catch (error) {
+        alert('❌ Failed to resend survey');
+        console.error('Error:', error);
+      }
+    };
+
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-white mb-2">Pending Surveys</h2>
+            <p className="text-gray-400">
+              Surveys that have been sent but not yet completed ({pendingSurveys.length} total)
+            </p>
+          </div>
+          <button 
+            onClick={fetchPendingSurveys}
+            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors"
+          >
+            🔄 Refresh
+          </button>
+        </div>
+
+        {pendingSurveys.length === 0 ? (
+          <div className="bg-gray-800 rounded-lg p-12 border border-gray-700 text-center">
+            <div className="text-6xl mb-4">✅</div>
+            <h3 className="text-xl font-bold text-white mb-2">No Pending Surveys</h3>
+            <p className="text-gray-400">
+              All surveys have been completed or no surveys have been sent yet.
+            </p>
+          </div>
+        ) : (
+          <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Client Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Email</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Sent Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Days Pending</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Survey Type</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {pendingSurveys.map(survey => (
+                    <tr key={survey.id} className="hover:bg-gray-700 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-white">{survey.client_name}</div>
+                        {survey.contact_person && (
+                          <div className="text-sm text-gray-400">{survey.contact_person}</div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-blue-400">{survey.email || 'No email'}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-300">
+                          {new Date(survey.sent_date).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {new Date(survey.sent_date).toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          survey.days_pending >= 14 
+                            ? 'bg-red-600 text-white' 
+                            : survey.days_pending >= 7 
+                            ? 'bg-yellow-600 text-white' 
+                            : 'bg-blue-600 text-white'
+                        }`}>
+                          {survey.days_pending} {survey.days_pending === 1 ? 'day' : 'days'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="px-2 py-1 rounded text-xs font-medium bg-purple-600">
+                          {survey.survey_type}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <button
+                          onClick={() => resendSurvey(survey.id)}
+                          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors text-white"
+                        >
+                          📧 Resend
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderSurveys = () => (
     <div>
       <div className="mb-6">
@@ -1080,6 +1223,16 @@ function App() {
             Survey Responses
           </button>
           <button
+            onClick={() => setActiveView('pending')}
+            className={`px-6 py-3 font-medium transition-colors ${
+              activeView === 'pending' 
+                ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Pending Surveys
+          </button>
+          <button
             onClick={() => setActiveView('surveys')}
             className={`px-6 py-3 font-medium transition-colors ${
               activeView === 'surveys' 
@@ -1096,6 +1249,7 @@ function App() {
         {activeView === 'dashboard' && renderDashboard()}
         {activeView === 'clients' && renderClients()}
         {activeView === 'responses' && renderResponses()}
+        {activeView === 'pending' && renderPendingSurveys()}
         {activeView === 'surveys' && renderSurveys()}
       </main>
 
