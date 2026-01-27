@@ -21,9 +21,9 @@ const ADMIN_EMAILS = [
 
 // Admin check middleware
 function isAdmin(req, res, next) {
-  // Get user email from headers (can be set by frontend after Okta auth)
-  // Format: X-User-Email header
-  const userEmail = req.headers['x-user-email'] || req.query.userEmail;
+  // Get user email from headers, body, or query (can be set by frontend after Okta auth)
+  // Format: X-User-Email header, userEmail in body, or userEmail query param
+  const userEmail = req.headers['x-user-email'] || req.body.userEmail || req.query.userEmail;
   
   if (!userEmail) {
     return res.status(401).json({ error: 'User email required' });
@@ -35,7 +35,7 @@ function isAdmin(req, res, next) {
   
   // Attach user info to request for audit logging
   req.userEmail = userEmail;
-  req.userName = req.headers['x-user-name'] || req.query.userName || userEmail.split('@')[0];
+  req.userName = req.headers['x-user-name'] || req.body.userName || req.query.userName || userEmail.split('@')[0];
   
   next();
 }
@@ -164,6 +164,13 @@ app.get('/api/clients/:id/contacts', (req, res) => {
 // Set primary contact for surveys - MUST BE BEFORE /api/clients/:id
 app.post('/api/clients/:id/set-primary-contact', (req, res) => {
   try {
+    // Admin check
+    const userEmail = req.body.userEmail || req.headers['x-user-email'];
+    if (!userEmail || !ADMIN_EMAILS.includes(userEmail.toLowerCase())) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const userName = req.body.userName || req.headers['x-user-name'] || userEmail.split('@')[0];
+    
     const clientId = req.params.id;
     const { contactId } = req.body;
     
@@ -183,6 +190,10 @@ app.post('/api/clients/:id/set-primary-contact', (req, res) => {
       return res.status(400).json({ error: 'Contact does not belong to this company' });
     }
     
+    // Get old primary contact email for audit
+    const oldEmail = client.email;
+    const newEmail = contact.email;
+    
     db.prepare(`
       UPDATE clients 
       SET email = ?, contact_person = ?
@@ -191,6 +202,17 @@ app.post('/api/clients/:id/set-primary-contact', (req, res) => {
       contact.email,
       `${contact.first_name} ${contact.last_name}`.trim(),
       client.autotask_id
+    );
+    
+    // Log audit event
+    logAuditEvent(
+      userEmail,
+      userName,
+      'Changed primary contact',
+      'client',
+      client.id,
+      { email: oldEmail, contact_person: client.contact_person },
+      { email: newEmail, contact_person: `${contact.first_name} ${contact.last_name}`.trim() }
     );
     
     res.json({ 
@@ -695,6 +717,13 @@ app.post('/api/surveys/send/:clientId', async (req, res) => {
 // Schedule survey for client
 app.post('/api/clients/:id/schedule-survey', (req, res) => {
   try {
+    // Admin check
+    const userEmail = req.body.userEmail || req.headers['x-user-email'];
+    if (!userEmail || !ADMIN_EMAILS.includes(userEmail.toLowerCase())) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const userName = req.body.userName || req.headers['x-user-name'] || userEmail.split('@')[0];
+    
     const clientId = req.params.id;
     const { days } = req.body;
     
@@ -704,6 +733,9 @@ app.post('/api/clients/:id/schedule-survey', (req, res) => {
       return res.status(404).json({ error: 'Client not found' });
     }
     
+    // Get old survey_frequency for audit
+    const oldFrequency = client.survey_frequency;
+    
     // If days is null, clear the schedule (Never option)
     if (days === null) {
       db.prepare(`
@@ -712,6 +744,17 @@ app.post('/api/clients/:id/schedule-survey', (req, res) => {
             survey_frequency = NULL
         WHERE id = ?
       `).run(client.id);
+      
+      // Log audit event
+      logAuditEvent(
+        userEmail,
+        userName,
+        'Changed survey scheduling',
+        'client',
+        client.id,
+        { survey_frequency: oldFrequency },
+        { survey_frequency: null }
+      );
       
       return res.json({ 
         success: true,
@@ -734,6 +777,17 @@ app.post('/api/clients/:id/schedule-survey', (req, res) => {
       WHERE id = ?
     `).run(nextSurveyDate.toISOString(), days, client.id);
     
+    // Log audit event
+    logAuditEvent(
+      userEmail,
+      userName,
+      'Changed survey scheduling',
+      'client',
+      client.id,
+      { survey_frequency: oldFrequency },
+      { survey_frequency: days }
+    );
+    
     res.json({ 
       success: true,
       next_survey: nextSurveyDate.toISOString(),
@@ -749,16 +803,36 @@ app.post('/api/clients/:id/schedule-survey', (req, res) => {
 // Sync companies from Autotask
 app.post('/api/sync/companies', async (req, res) => {
   try {
+    // Admin check
+    const userEmail = req.body.userEmail || req.headers['x-user-email'];
+    if (!userEmail || !ADMIN_EMAILS.includes(userEmail.toLowerCase())) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const userName = req.body.userName || req.headers['x-user-name'] || userEmail.split('@')[0];
+    
     console.log('🔄 Starting company sync from Autotask...');
+    const countBefore = db.prepare('SELECT COUNT(*) as count FROM clients').get();
     const { syncFromAutotask } = require('./sync-autotask');
     await syncFromAutotask();
     
-    const count = db.prepare('SELECT COUNT(*) as count FROM clients').get();
+    const countAfter = db.prepare('SELECT COUNT(*) as count FROM clients').get();
+    const syncedCount = countAfter.count - countBefore.count;
+    
+    // Log audit event
+    logAuditEvent(
+      userEmail,
+      userName,
+      'Synced companies',
+      null,
+      null,
+      null,
+      { totalCompanies: countAfter.count, syncedCount: syncedCount }
+    );
     
     res.json({ 
       success: true, 
       message: 'Company sync completed successfully',
-      totalCompanies: count.count
+      totalCompanies: countAfter.count
     });
   } catch (error) {
     console.error('Sync error:', error);
@@ -772,16 +846,36 @@ app.post('/api/sync/companies', async (req, res) => {
 // Sync contacts from Autotask
 app.post('/api/sync/contacts', async (req, res) => {
   try {
+    // Admin check
+    const userEmail = req.body.userEmail || req.headers['x-user-email'];
+    if (!userEmail || !ADMIN_EMAILS.includes(userEmail.toLowerCase())) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const userName = req.body.userName || req.headers['x-user-name'] || userEmail.split('@')[0];
+    
     console.log('🔄 Starting contact sync from Autotask...');
+    const countBefore = db.prepare('SELECT COUNT(*) as count FROM contacts').get();
     const { syncContactsFromAutotask } = require('./sync-contacts');
     await syncContactsFromAutotask();
     
-    const count = db.prepare('SELECT COUNT(*) as count FROM contacts').get();
+    const countAfter = db.prepare('SELECT COUNT(*) as count FROM contacts').get();
+    const syncedCount = countAfter.count - countBefore.count;
+    
+    // Log audit event
+    logAuditEvent(
+      userEmail,
+      userName,
+      'Synced contacts',
+      null,
+      null,
+      null,
+      { totalContacts: countAfter.count, syncedCount: syncedCount }
+    );
     
     res.json({ 
       success: true, 
       message: 'Contact sync completed successfully',
-      totalContacts: count.count
+      totalContacts: countAfter.count
     });
   } catch (error) {
     console.error('Sync error:', error);
@@ -795,6 +889,16 @@ app.post('/api/sync/contacts', async (req, res) => {
 // Delete all survey data (admin endpoint)
 app.post('/api/admin/delete-all-surveys', (req, res) => {
   try {
+    // Admin check
+    const userEmail = req.body.userEmail || req.headers['x-user-email'];
+    if (!userEmail || !ADMIN_EMAILS.includes(userEmail.toLowerCase())) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    const userName = req.body.userName || req.headers['x-user-name'] || userEmail.split('@')[0];
+    
+    // Get count before deletion for audit
+    const countBefore = db.prepare('SELECT COUNT(*) as count FROM surveys').get();
+    
     // Delete all surveys
     const deleteResult = db.prepare('DELETE FROM surveys').run();
     
@@ -803,6 +907,17 @@ app.post('/api/admin/delete-all-surveys', (req, res) => {
     
     // Clear last_survey dates
     const resetDates = db.prepare('UPDATE clients SET last_survey = NULL').run();
+    
+    // Log audit event
+    logAuditEvent(
+      userEmail,
+      userName,
+      'Deleted all survey data',
+      null,
+      null,
+      { deleted_surveys: countBefore.count, reset_scores: resetScores.changes, reset_dates: resetDates.changes },
+      null
+    );
     
     res.json({ 
       success: true, 
