@@ -429,6 +429,7 @@ app.get('/api/surveys/responses', (req, res) => {
       FROM surveys s
       JOIN clients c ON s.client_id = c.id
       WHERE s.completed_date IS NOT NULL
+        AND (s.archived = 0 OR s.archived IS NULL)
       ORDER BY s.completed_date DESC
     `).all();
     
