@@ -90,6 +90,21 @@ function initDatabase() {
     )
   `);
 
+  // Create audit_logs table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_email TEXT NOT NULL,
+      user_name TEXT,
+      action TEXT NOT NULL,
+      entity_type TEXT,
+      entity_id INTEGER,
+      old_value TEXT,
+      new_value TEXT,
+      timestamp TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   console.log('✅ Database tables initialized');
 }
 

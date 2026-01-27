@@ -13,6 +13,54 @@ app.use(express.json());
 
 const PORT = 3000;
 
+// Admin email list (can be expanded to check Okta groups)
+const ADMIN_EMAILS = [
+  'wylie@northwind.us',
+  'devin@northwind.us'
+];
+
+// Admin check middleware
+function isAdmin(req, res, next) {
+  // Get user email from headers (can be set by frontend after Okta auth)
+  // Format: X-User-Email header
+  const userEmail = req.headers['x-user-email'] || req.query.userEmail;
+  
+  if (!userEmail) {
+    return res.status(401).json({ error: 'User email required' });
+  }
+  
+  if (!ADMIN_EMAILS.includes(userEmail.toLowerCase())) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  
+  // Attach user info to request for audit logging
+  req.userEmail = userEmail;
+  req.userName = req.headers['x-user-name'] || req.query.userName || userEmail.split('@')[0];
+  
+  next();
+}
+
+// Audit logging function
+function logAuditEvent(userEmail, userName, action, entityType, entityId, oldValue, newValue) {
+  try {
+    db.prepare(`
+      INSERT INTO audit_logs (user_email, user_name, action, entity_type, entity_id, old_value, new_value)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      userEmail,
+      userName || userEmail.split('@')[0],
+      action,
+      entityType || null,
+      entityId || null,
+      oldValue ? JSON.stringify(oldValue) : null,
+      newValue ? JSON.stringify(newValue) : null
+    );
+  } catch (error) {
+    console.error('Error logging audit event:', error);
+    // Don't throw - audit logging failures shouldn't break the app
+  }
+}
+
 // Start the survey scheduler
 startScheduler();
 
@@ -769,6 +817,33 @@ app.post('/api/admin/delete-all-surveys', (req, res) => {
       success: false, 
       error: error.message 
     });
+  }
+});
+
+// Get audit logs (admin only)
+app.get('/api/audit-logs', isAdmin, (req, res) => {
+  try {
+    const logs = db.prepare(`
+      SELECT 
+        al.*,
+        CASE 
+          WHEN al.entity_type = 'client' THEN c.name
+          WHEN al.entity_type = 'survey' THEN 'Survey #' || al.entity_id
+          ELSE NULL
+        END as entity_name
+      FROM audit_logs al
+      LEFT JOIN clients c ON al.entity_type = 'client' AND al.entity_id = c.id
+      ORDER BY al.timestamp DESC
+      LIMIT 1000
+    `).all();
+    
+    res.json({
+      total: logs.length,
+      logs: logs
+    });
+  } catch (error) {
+    console.error('Error fetching audit logs:', error);
+    res.status(500).json({ error: 'Failed to fetch audit logs' });
   }
 });
 
