@@ -585,6 +585,34 @@ app.post('/api/sync/contacts', async (req, res) => {
   }
 });
 
+// Delete all survey data (admin endpoint)
+app.post('/api/admin/delete-all-surveys', (req, res) => {
+  try {
+    // Delete all surveys
+    const deleteResult = db.prepare('DELETE FROM surveys').run();
+    
+    // Reset client scores to 0
+    const resetScores = db.prepare('UPDATE clients SET score = 0 WHERE score > 0').run();
+    
+    // Clear last_survey dates
+    const resetDates = db.prepare('UPDATE clients SET last_survey = NULL').run();
+    
+    res.json({ 
+      success: true, 
+      message: 'All survey data deleted successfully',
+      deleted_surveys: deleteResult.changes,
+      reset_scores: resetScores.changes,
+      reset_dates: resetDates.changes
+    });
+  } catch (error) {
+    console.error('Error deleting survey data:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 app.listen(PORT, () => {
   console.log('Northwind Survey Server running on http://localhost:' + PORT);
 });

@@ -212,6 +212,39 @@ function App() {
     }
   };
 
+  const deleteAllSurveyData = async () => {
+    const confirmMessage = '⚠️ WARNING: This will permanently delete ALL survey responses, reset all client scores to 0, and clear last_survey dates.\n\nThis action cannot be undone!\n\nAre you absolutely sure you want to proceed?';
+    
+    if (!confirm(confirmMessage)) return;
+    
+    // Double confirmation
+    if (!confirm('⚠️ FINAL WARNING: This will delete ALL survey data. Click OK to proceed or Cancel to abort.')) return;
+    
+    try {
+      setSyncing(true);
+      const response = await fetch('https://northwind-survey-backend.onrender.com/api/admin/delete-all-surveys', {
+        method: 'POST'
+      });
+      const result = await response.json();
+      
+      if (result.success) {
+        alert(`✅ ${result.message}\n\nDeleted ${result.deleted_surveys} surveys\nReset ${result.reset_scores} client scores\nCleared ${result.reset_dates} last_survey dates`);
+        // Refresh all data
+        fetchClients();
+        fetchStats();
+        fetchSurveyStatistics();
+        fetchAllResponses();
+      } else {
+        alert(`❌ Delete failed: ${result.error}`);
+      }
+    } catch (error) {
+      alert('❌ Failed to delete survey data');
+      console.error('Error:', error);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const setPrimaryContact = async (clientId, contactId) => {
     try {
       const response = await fetch(`https://northwind-survey-backend.onrender.com/api/clients/${clientId}/set-primary-contact`, {
@@ -349,6 +382,23 @@ function App() {
 
   const renderDashboard = () => (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Admin Actions */}
+      <div className="lg:col-span-3 bg-red-900 bg-opacity-20 border border-red-700 rounded-lg p-4 mb-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-red-300 mb-1">⚠️ Admin Actions</h3>
+            <p className="text-sm text-red-200">Dangerous operations - use with caution</p>
+          </div>
+          <button
+            onClick={deleteAllSurveyData}
+            disabled={syncing}
+            className="bg-red-600 hover:bg-red-700 disabled:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-medium transition-colors text-white"
+          >
+            {syncing ? '⏳ Deleting...' : '🗑️ Delete All Survey Data'}
+          </button>
+        </div>
+      </div>
+
       <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
           <div className="flex items-center justify-between mb-2">
