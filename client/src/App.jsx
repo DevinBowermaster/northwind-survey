@@ -413,7 +413,7 @@ function App() {
   };
 
   const getStatusText = (score) => {
-    if (!score || score === 0) return 'Pending';
+    if (!score || score === 0) return 'No Score';
     if (score >= 9) return 'Excellent';
     if (score >= 7) return 'Good';
     return 'Needs Attention';
