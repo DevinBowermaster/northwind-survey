@@ -439,6 +439,161 @@ app.get('/api/surveys/responses', (req, res) => {
   }
 });
 
+// Archive a survey
+app.post('/api/surveys/:id/archive', (req, res) => {
+  try {
+    const surveyId = req.params.id;
+    
+    const survey = db.prepare('SELECT * FROM surveys WHERE id = ?').get(surveyId);
+    
+    if (!survey) {
+      return res.status(404).json({ error: 'Survey not found' });
+    }
+    
+    if (survey.archived === 1) {
+      return res.status(400).json({ error: 'Survey is already archived' });
+    }
+    
+    db.prepare(`
+      UPDATE surveys 
+      SET archived = 1, archived_date = datetime('now')
+      WHERE id = ?
+    `).run(surveyId);
+    
+    res.json({ 
+      success: true, 
+      message: 'Survey archived successfully',
+      archived_date: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error archiving survey:', error);
+    res.status(500).json({ error: 'Failed to archive survey' });
+  }
+});
+
+// Get all archived surveys
+app.get('/api/surveys/archived', (req, res) => {
+  try {
+    const archived = db.prepare(`
+      SELECT 
+        s.*,
+        c.name as client_name,
+        (s.overall_satisfaction + s.response_time + s.technical_knowledge + s.communication + s.recommend_score) / 5.0 as avg_score,
+        strftime('%Y', s.archived_date) as year,
+        strftime('%m', s.archived_date) as month,
+        strftime('%Y-%m', s.archived_date) as year_month
+      FROM surveys s
+      JOIN clients c ON s.client_id = c.id
+      WHERE s.archived = 1
+      ORDER BY s.archived_date DESC
+    `).all();
+    
+    // Organize by client, year, month
+    const organized = {};
+    
+    archived.forEach(survey => {
+      const clientName = survey.client_name;
+      const yearMonth = survey.year_month || 'Unknown';
+      
+      if (!organized[clientName]) {
+        organized[clientName] = {};
+      }
+      
+      if (!organized[clientName][yearMonth]) {
+        organized[clientName][yearMonth] = {
+          year: survey.year,
+          month: survey.month,
+          surveys: []
+        };
+      }
+      
+      organized[clientName][yearMonth].surveys.push(survey);
+    });
+    
+    res.json({
+      total: archived.length,
+      organized: organized
+    });
+  } catch (error) {
+    console.error('Error fetching archived surveys:', error);
+    res.status(500).json({ error: 'Failed to fetch archived surveys' });
+  }
+});
+
+// Get all pending surveys
+app.get('/api/surveys/pending', (req, res) => {
+  try {
+    const pending = db.prepare(`
+      SELECT 
+        s.id,
+        s.token,
+        s.survey_type,
+        s.sent_date,
+        c.id as client_id,
+        c.name as client_name,
+        c.email,
+        c.contact_person,
+        CAST(julianday('now') - julianday(s.sent_date) AS INTEGER) as days_pending
+      FROM surveys s
+      JOIN clients c ON s.client_id = c.id
+      WHERE s.sent_date IS NOT NULL 
+        AND s.completed_date IS NULL
+        AND (s.archived IS NULL OR s.archived = 0)
+      ORDER BY s.sent_date ASC
+    `).all();
+    
+    res.json({
+      total: pending.length,
+      surveys: pending
+    });
+  } catch (error) {
+    console.error('Error fetching pending surveys:', error);
+    res.status(500).json({ error: 'Failed to fetch pending surveys' });
+  }
+});
+
+// Resend survey email
+app.post('/api/surveys/:id/resend', async (req, res) => {
+  try {
+    const surveyId = req.params.id;
+    
+    const survey = db.prepare('SELECT * FROM surveys WHERE id = ?').get(surveyId);
+    
+    if (!survey) {
+      return res.status(404).json({ error: 'Survey not found' });
+    }
+    
+    const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(survey.client_id);
+    
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+    
+    if (!client.email) {
+      return res.status(400).json({ error: 'Client has no email address' });
+    }
+    
+    // Use existing token
+    const frontendUrl = process.env.FRONTEND_URL || 'https://northwind-survey-frontend.onrender.com';
+    const surveyLink = `${frontendUrl}/survey/${survey.token}`;
+    
+    // Resend email
+    await emailService.sendSurveyEmail(client, survey.survey_type || 'Quarterly', surveyLink);
+    
+    // Update sent_date to current time
+    db.prepare("UPDATE surveys SET sent_date = datetime('now') WHERE id = ?").run(surveyId);
+    
+    res.json({ 
+      success: true, 
+      message: `Survey email resent to ${client.email}`,
+      surveyLink: surveyLink
+    });
+  } catch (error) {
+    console.error('Error resending survey:', error);
+    res.status(500).json({ error: 'Failed to resend survey' });
+  }
+});
+
 // Send survey to a single client
 app.post('/api/surveys/send/:clientId', async (req, res) => {
   try {
