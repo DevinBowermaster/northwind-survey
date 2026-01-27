@@ -48,6 +48,8 @@ function App() {
   const [previewingTemplate, setPreviewingTemplate] = useState(null);
   const [selectedSurveyType, setSelectedSurveyType] = useState('Quarterly');
   const [pendingSurveys, setPendingSurveys] = useState([]);
+  const [archivedSurveys, setArchivedSurveys] = useState([]);
+  const [expandedArchives, setExpandedArchives] = useState(new Set());
   const RESPONSES_PER_PAGE = 10;
 
   useEffect(() => {
@@ -68,6 +70,13 @@ function App() {
   useEffect(() => {
     if (activeView === 'pending') {
       fetchPendingSurveys();
+    }
+  }, [activeView]);
+
+  // Fetch archived surveys when switching to archives view
+  useEffect(() => {
+    if (activeView === 'archives') {
+      fetchArchivedSurveys();
     }
   }, [activeView]);
 
@@ -123,6 +132,17 @@ function App() {
     } catch (err) {
       console.error('Error fetching pending surveys:', err);
       setPendingSurveys([]);
+    }
+  };
+
+  const fetchArchivedSurveys = async () => {
+    try {
+      const response = await fetch('https://northwind-survey-backend.onrender.com/api/surveys/archived');
+      const data = await response.json();
+      setArchivedSurveys(data.organized || {});
+    } catch (err) {
+      console.error('Error fetching archived surveys:', err);
+      setArchivedSurveys({});
     }
   };
 
@@ -965,6 +985,38 @@ function App() {
                             </div>
                           )}
                         </div>
+
+                        {/* Archive Button */}
+                        <div className="mt-4 pt-4 border-t border-gray-700">
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const surveyId = response.id;
+                              if (!confirm('Archive this survey response?')) return;
+                              
+                              try {
+                                const archiveResponse = await fetch(`https://northwind-survey-backend.onrender.com/api/surveys/${surveyId}/archive`, {
+                                  method: 'POST'
+                                });
+                                const result = await archiveResponse.json();
+                                
+                                if (result.success) {
+                                  alert('✅ Survey archived successfully');
+                                  fetchAllResponses(); // Refresh responses
+                                  fetchSurveyStatistics(); // Update stats
+                                } else {
+                                  alert(`❌ Error: ${result.error}`);
+                                }
+                              } catch (error) {
+                                alert('❌ Failed to archive survey');
+                                console.error('Error:', error);
+                              }
+                            }}
+                            className="bg-orange-600 hover:bg-orange-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors text-white"
+                          >
+                            📦 Archive
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1124,6 +1176,215 @@ function App() {
     );
   };
 
+  const renderArchives = () => {
+    const toggleArchiveSection = (key) => {
+      setExpandedArchives(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(key)) {
+          newSet.delete(key);
+        } else {
+          newSet.add(key);
+        }
+        return newSet;
+      });
+    };
+
+    const getMonthName = (month) => {
+      const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                     'July', 'August', 'September', 'October', 'November', 'December'];
+      return months[parseInt(month) - 1] || month;
+    };
+
+    const clientNames = Object.keys(archivedSurveys).sort();
+
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-white mb-2">Archived Surveys</h2>
+            <p className="text-gray-400">
+              Archived survey responses organized by client, year, and month
+            </p>
+          </div>
+          <button 
+            onClick={fetchArchivedSurveys}
+            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors"
+          >
+            🔄 Refresh
+          </button>
+        </div>
+
+        {clientNames.length === 0 ? (
+          <div className="bg-gray-800 rounded-lg p-12 border border-gray-700 text-center">
+            <div className="text-6xl mb-4">📦</div>
+            <h3 className="text-xl font-bold text-white mb-2">No Archived Surveys</h3>
+            <p className="text-gray-400">
+              Archived surveys will appear here once you archive survey responses.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {clientNames.map(clientName => {
+              const clientKey = `client-${clientName}`;
+              const isClientExpanded = expandedArchives.has(clientKey);
+              const yearMonths = Object.keys(archivedSurveys[clientName]).sort().reverse();
+
+              return (
+                <div key={clientName} className="bg-gray-800 rounded-lg border border-gray-700">
+                  {/* Client Header */}
+                  <div 
+                    className="p-4 cursor-pointer hover:bg-gray-700 transition-colors"
+                    onClick={() => toggleArchiveSection(clientKey)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-gray-400">{isClientExpanded ? '▼' : '▶'}</span>
+                        <h3 className="text-lg font-bold text-white">{clientName}</h3>
+                        <span className="px-2 py-1 rounded text-xs font-medium bg-gray-600">
+                          {yearMonths.length} {yearMonths.length === 1 ? 'period' : 'periods'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Client Content - Years/Months */}
+                  {isClientExpanded && (
+                    <div className="px-4 pb-4 space-y-3">
+                      {yearMonths.map(yearMonth => {
+                        const yearMonthKey = `${clientKey}-${yearMonth}`;
+                        const isYearMonthExpanded = expandedArchives.has(yearMonthKey);
+                        const yearMonthData = archivedSurveys[clientName][yearMonth];
+                        const surveys = yearMonthData.surveys || [];
+
+                        return (
+                          <div key={yearMonth} className="bg-gray-700 rounded-lg border border-gray-600">
+                            {/* Year/Month Header */}
+                            <div 
+                              className="p-3 cursor-pointer hover:bg-gray-600 transition-colors"
+                              onClick={() => toggleArchiveSection(yearMonthKey)}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <span className="text-gray-400 text-sm">{isYearMonthExpanded ? '▼' : '▶'}</span>
+                                  <span className="text-md font-semibold text-white">
+                                    {getMonthName(yearMonthData.month)} {yearMonthData.year}
+                                  </span>
+                                  <span className="px-2 py-1 rounded text-xs font-medium bg-purple-600">
+                                    {surveys.length} {surveys.length === 1 ? 'survey' : 'surveys'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Surveys List */}
+                            {isYearMonthExpanded && (
+                              <div className="px-3 pb-3 space-y-2">
+                                {surveys.map(survey => (
+                                  <div key={survey.id} className="bg-gray-600 rounded-lg p-4 border border-gray-500">
+                                    <div className="flex items-start justify-between mb-3">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-2">
+                                          <span className="px-2 py-1 rounded text-xs font-medium bg-blue-600">
+                                            {survey.survey_type}
+                                          </span>
+                                          <span className="text-sm text-gray-300">
+                                            Archived: {new Date(survey.archived_date).toLocaleDateString('en-US', {
+                                              year: 'numeric',
+                                              month: 'short',
+                                              day: 'numeric'
+                                            })}
+                                          </span>
+                                        </div>
+                                        {survey.completed_date && (
+                                          <p className="text-sm text-gray-400 mb-2">
+                                            Completed: {new Date(survey.completed_date).toLocaleDateString('en-US', {
+                                              year: 'numeric',
+                                              month: 'long',
+                                              day: 'numeric'
+                                            })}
+                                          </p>
+                                        )}
+                                      </div>
+                                      {survey.avg_score && (
+                                        <div className="text-right">
+                                          <div className="text-2xl font-bold text-blue-400">
+                                            {Math.round(survey.avg_score * 10) / 10}/10
+                                          </div>
+                                          <div className="text-xs text-gray-400">Average</div>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Survey Details */}
+                                    {(survey.overall_satisfaction || survey.what_we_do_well || survey.what_to_improve) && (
+                                      <div className="mt-3 pt-3 border-t border-gray-500">
+                                        {survey.overall_satisfaction && (
+                                          <div className="grid grid-cols-5 gap-2 mb-3">
+                                            <div className="text-center">
+                                              <div className="text-lg font-bold text-white">{survey.overall_satisfaction}</div>
+                                              <div className="text-xs text-gray-400">Overall</div>
+                                            </div>
+                                            <div className="text-center">
+                                              <div className="text-lg font-bold text-white">{survey.response_time}</div>
+                                              <div className="text-xs text-gray-400">Response</div>
+                                            </div>
+                                            <div className="text-center">
+                                              <div className="text-lg font-bold text-white">{survey.technical_knowledge}</div>
+                                              <div className="text-xs text-gray-400">Technical</div>
+                                            </div>
+                                            <div className="text-center">
+                                              <div className="text-lg font-bold text-white">{survey.communication}</div>
+                                              <div className="text-xs text-gray-400">Communication</div>
+                                            </div>
+                                            <div className="text-center">
+                                              <div className="text-lg font-bold text-white">{survey.recommend_score}</div>
+                                              <div className="text-xs text-gray-400">NPS</div>
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        <div className="space-y-2">
+                                          {survey.what_we_do_well && (
+                                            <div className="bg-green-900 bg-opacity-20 border border-green-700 rounded p-2">
+                                              <p className="text-xs font-medium text-green-300 mb-1">What we do well:</p>
+                                              <p className="text-sm text-gray-200">{survey.what_we_do_well}</p>
+                                            </div>
+                                          )}
+
+                                          {survey.what_to_improve && (
+                                            <div className="bg-yellow-900 bg-opacity-20 border border-yellow-700 rounded p-2">
+                                              <p className="text-xs font-medium text-yellow-300 mb-1">What to improve:</p>
+                                              <p className="text-sm text-gray-200">{survey.what_to_improve}</p>
+                                            </div>
+                                          )}
+
+                                          {survey.additional_comments && (
+                                            <div className="bg-blue-900 bg-opacity-20 border border-blue-700 rounded p-2">
+                                              <p className="text-xs font-medium text-blue-300 mb-1">Additional comments:</p>
+                                              <p className="text-sm text-gray-200">{survey.additional_comments}</p>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderSurveys = () => (
     <div>
       <div className="mb-6">
@@ -1233,6 +1494,16 @@ function App() {
             Pending Surveys
           </button>
           <button
+            onClick={() => setActiveView('archives')}
+            className={`px-6 py-3 font-medium transition-colors ${
+              activeView === 'archives' 
+                ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Archives
+          </button>
+          <button
             onClick={() => setActiveView('surveys')}
             className={`px-6 py-3 font-medium transition-colors ${
               activeView === 'surveys' 
@@ -1250,6 +1521,7 @@ function App() {
         {activeView === 'clients' && renderClients()}
         {activeView === 'responses' && renderResponses()}
         {activeView === 'pending' && renderPendingSurveys()}
+        {activeView === 'archives' && renderArchives()}
         {activeView === 'surveys' && renderSurveys()}
       </main>
 
