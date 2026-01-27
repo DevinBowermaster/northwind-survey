@@ -7,6 +7,7 @@ import App from './App.jsx'
 import SurveyResponse from './SurveyResponse.jsx'
 import { RequireAuth } from './RequireAuth.jsx'
 import { oktaConfig } from './oktaConfig.js'
+import { registerServiceWorker } from './registerServiceWorker.js'
 import './index.css'
 
 const oktaAuth = new OktaAuth(oktaConfig);
@@ -16,6 +17,9 @@ const restoreOriginalUri = async (_oktaAuth, originalUri) => {
     toRelativeUrl(originalUri || '/', window.location.origin)
   );
 };
+
+// Register service worker for PWA support
+registerServiceWorker();
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
