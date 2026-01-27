@@ -696,13 +696,6 @@ function App() {
           </button>
         </div>
 
-        {clientFilter === 'managed' && (
-          <div className="bg-green-900 bg-opacity-30 border border-green-700 rounded-lg p-4 mb-6">
-            <p className="text-green-200 text-sm">
-              📧 These {managedCount} managed clients will receive quarterly surveys
-            </p>
-          </div>
-        )}
 
         <div className="grid grid-cols-1 gap-4">
           {loading ? (
@@ -729,11 +722,28 @@ function App() {
                           🎯 Managed
                         </span>
                       )}
-                      {client.send_surveys === 1 && (
+                      {client.survey_frequency && [30, 60, 90].includes(client.survey_frequency) && (
                         <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-600">
                           📧 Surveys Enabled
                         </span>
                       )}
+                      {(() => {
+                        // Check if there's a pending survey
+                        if (client.last_survey) {
+                          const lastSurveyDate = new Date(client.last_survey);
+                          const daysSinceSurvey = Math.floor((new Date() - lastSurveyDate) / (1000 * 60 * 60 * 24));
+                          
+                          // Show pending badge if survey was sent within last 90 days
+                          if (daysSinceSurvey >= 0 && daysSinceSurvey <= 90) {
+                            return (
+                              <span className="px-3 py-1 rounded-full text-xs font-medium bg-yellow-600">
+                                ⏳ Pending Survey
+                              </span>
+                            );
+                          }
+                        }
+                        return null;
+                      })()}
                       {client.contact_count > 0 && (
                         <span className="px-3 py-1 rounded-full text-xs font-medium bg-purple-600">
                           👥 {client.contact_count} {client.contact_count === 1 ? 'contact' : 'contacts'}
