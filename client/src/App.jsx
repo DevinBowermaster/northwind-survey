@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useOktaAuth } from '@okta/okta-react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -26,6 +27,7 @@ ChartJS.register(
 );
 
 function App() {
+  const { authState } = useOktaAuth();
   const [activeView, setActiveView] = useState('dashboard');
   const [clients, setClients] = useState([]);
   const [stats, setStats] = useState(null);
@@ -50,7 +52,14 @@ function App() {
   const [pendingSurveys, setPendingSurveys] = useState([]);
   const [archivedSurveys, setArchivedSurveys] = useState([]);
   const [expandedArchives, setExpandedArchives] = useState(new Set());
+  const [userEmail, setUserEmail] = useState(null);
+  const [userName, setUserName] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [auditLogs, setAuditLogs] = useState([]);
   const RESPONSES_PER_PAGE = 10;
+
+  // Admin email list (must match server.js)
+  const ADMIN_EMAILS = ['wylie@northwind.us', 'devin@northwind.us'];
 
   useEffect(() => {
     fetchClients();
@@ -58,6 +67,22 @@ function App() {
     fetchSurveyStatistics();
     fetchTemplates();
   }, []);
+
+  // Get user info from Okta and check admin status
+  useEffect(() => {
+    if (authState?.isAuthenticated && authState?.idToken?.claims) {
+      const email = authState.idToken.claims.email;
+      const name = authState.idToken.claims.name || email?.split('@')[0];
+      
+      setUserEmail(email);
+      setUserName(name);
+      setIsAdmin(email && ADMIN_EMAILS.includes(email.toLowerCase()));
+    } else {
+      setUserEmail(null);
+      setUserName(null);
+      setIsAdmin(false);
+    }
+  }, [authState]);
 
   // Fetch all responses when switching to responses view
   useEffect(() => {
@@ -77,6 +102,13 @@ function App() {
   useEffect(() => {
     if (activeView === 'archives') {
       fetchArchivedSurveys();
+    }
+  }, [activeView]);
+
+  // Fetch audit logs when switching to audit logs view
+  useEffect(() => {
+    if (activeView === 'audit-logs') {
+      fetchAuditLogs();
     }
   }, [activeView]);
 
@@ -146,6 +178,29 @@ function App() {
     }
   };
 
+  const fetchAuditLogs = async () => {
+    try {
+      const response = await fetch(`https://northwind-survey-backend.onrender.com/api/audit-logs?userEmail=${encodeURIComponent(userEmail || '')}&userName=${encodeURIComponent(userName || '')}`, {
+        headers: {
+          'X-User-Email': userEmail || '',
+          'X-User-Name': userName || ''
+        }
+      });
+      
+      if (response.status === 403) {
+        alert('❌ Admin access required');
+        setAuditLogs([]);
+        return;
+      }
+      
+      const data = await response.json();
+      setAuditLogs(data.logs || []);
+    } catch (err) {
+      console.error('Error fetching audit logs:', err);
+      setAuditLogs([]);
+    }
+  };
+
   const toggleResponse = (responseId) => {
     setExpandedResponses(prev => {
       const newSet = new Set(prev);
@@ -208,8 +263,16 @@ function App() {
     try {
       setSyncing(true);
       const response = await fetch('https://northwind-survey-backend.onrender.com/api/sync/companies', {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userEmail, userName })
       });
+      
+      if (response.status === 403) {
+        alert('❌ Admin access required');
+        return;
+      }
+      
       const result = await response.json();
       
       if (result.success) {
@@ -233,8 +296,16 @@ function App() {
     try {
       setSyncing(true);
       const response = await fetch('https://northwind-survey-backend.onrender.com/api/sync/contacts', {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userEmail, userName })
       });
+      
+      if (response.status === 403) {
+        alert('❌ Admin access required');
+        return;
+      }
+      
       const result = await response.json();
       
       if (result.success) {
@@ -262,8 +333,16 @@ function App() {
     try {
       setSyncing(true);
       const response = await fetch('https://northwind-survey-backend.onrender.com/api/admin/delete-all-surveys', {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userEmail, userName })
       });
+      
+      if (response.status === 403) {
+        alert('❌ Admin access required');
+        return;
+      }
+      
       const result = await response.json();
       
       if (result.success) {
@@ -289,8 +368,13 @@ function App() {
       const response = await fetch(`https://northwind-survey-backend.onrender.com/api/clients/${clientId}/set-primary-contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contactId })
+        body: JSON.stringify({ contactId, userEmail, userName })
       });
+      
+      if (response.status === 403) {
+        alert('❌ Admin access required');
+        return;
+      }
       
       const result = await response.json();
       
@@ -422,21 +506,23 @@ function App() {
   const renderDashboard = () => (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Admin Actions */}
-      <div className="lg:col-span-3 bg-red-900 bg-opacity-20 border border-red-700 rounded-lg p-4 mb-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-bold text-red-300 mb-1">⚠️ Admin Actions</h3>
-            <p className="text-sm text-red-200">Dangerous operations - use with caution</p>
+      {isAdmin && (
+        <div className="lg:col-span-3 bg-red-900 bg-opacity-20 border border-red-700 rounded-lg p-4 mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-bold text-red-300 mb-1">⚠️ Admin Actions</h3>
+              <p className="text-sm text-red-200">Dangerous operations - use with caution</p>
+            </div>
+            <button
+              onClick={deleteAllSurveyData}
+              disabled={syncing}
+              className="w-full sm:w-auto bg-red-600 hover:bg-red-700 disabled:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-medium transition-colors text-white"
+            >
+              {syncing ? '⏳ Deleting...' : '🗑️ Delete All Survey Data'}
+            </button>
           </div>
-          <button
-            onClick={deleteAllSurveyData}
-            disabled={syncing}
-            className="w-full sm:w-auto bg-red-600 hover:bg-red-700 disabled:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-medium transition-colors text-white"
-          >
-            {syncing ? '⏳ Deleting...' : '🗑️ Delete All Survey Data'}
-          </button>
         </div>
-      </div>
+      )}
 
       <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
@@ -628,20 +714,24 @@ function App() {
             <p className="text-gray-400">Showing {filteredClients.length} of {clients.length} clients</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
-            <button 
-              onClick={syncCompanies}
-              disabled={syncing}
-              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {syncing ? '⏳ Syncing...' : '🔄 Sync Companies'}
-            </button>
-            <button 
-              onClick={syncContacts}
-              disabled={syncing}
-              className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {syncing ? '⏳ Syncing...' : '👥 Sync Contacts'}
-            </button>
+            {isAdmin && (
+              <button 
+                onClick={syncCompanies}
+                disabled={syncing}
+                className="w-full sm:w-auto bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {syncing ? '⏳ Syncing...' : '🔄 Sync Companies'}
+              </button>
+            )}
+            {isAdmin && (
+              <button 
+                onClick={syncContacts}
+                disabled={syncing}
+                className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {syncing ? '⏳ Syncing...' : '👥 Sync Contacts'}
+              </button>
+            )}
             <button 
               onClick={fetchClients}
               className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors"
@@ -762,15 +852,17 @@ function App() {
                       >
                         View Details
                       </button>
-                      <button
-                        onClick={async () => {
-                          setSelectingContactFor(client);
-                          await fetchClientContacts(client.id || client.autotask_id);
-                        }}
-                        className="w-full sm:w-auto bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                      >
-                        👥 Select Contact
-                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={async () => {
+                            setSelectingContactFor(client);
+                            await fetchClientContacts(client.id || client.autotask_id);
+                          }}
+                          className="w-full sm:w-auto bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                        >
+                          👥 Select Contact
+                        </button>
+                      )}
                     </div>
                   </div>
                   
@@ -1383,6 +1475,132 @@ function App() {
     );
   };
 
+  const renderAuditLog = () => {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-bold text-white mb-2">Audit Log</h2>
+            <p className="text-gray-400">
+              Complete history of admin actions and changes ({auditLogs.length} entries)
+            </p>
+          </div>
+          <button 
+            onClick={fetchAuditLogs}
+            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors"
+          >
+            🔄 Refresh
+          </button>
+        </div>
+
+        {auditLogs.length === 0 ? (
+          <div className="bg-gray-800 rounded-lg p-12 border border-gray-700 text-center">
+            <div className="text-6xl mb-4">📋</div>
+            <h3 className="text-xl font-bold text-white mb-2">No Audit Logs</h3>
+            <p className="text-gray-400">
+              Audit logs will appear here once admin actions are performed.
+            </p>
+          </div>
+        ) : (
+          <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Timestamp</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">User</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Action</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Entity</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Old Value</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">New Value</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {auditLogs.map(log => {
+                    let oldValueDisplay = null;
+                    let newValueDisplay = null;
+                    
+                    try {
+                      if (log.old_value) {
+                        const parsed = JSON.parse(log.old_value);
+                        oldValueDisplay = typeof parsed === 'object' ? JSON.stringify(parsed, null, 2) : parsed;
+                      }
+                      if (log.new_value) {
+                        const parsed = JSON.parse(log.new_value);
+                        newValueDisplay = typeof parsed === 'object' ? JSON.stringify(parsed, null, 2) : parsed;
+                      }
+                    } catch (e) {
+                      oldValueDisplay = log.old_value;
+                      newValueDisplay = log.new_value;
+                    }
+                    
+                    return (
+                      <tr key={log.id} className="hover:bg-gray-700 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-300">
+                            {new Date(log.timestamp).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {new Date(log.timestamp).toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit'
+                            })}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-white">{log.user_name || log.user_email}</div>
+                          <div className="text-xs text-gray-400">{log.user_email}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="px-2 py-1 rounded text-xs font-medium bg-blue-600">
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          {log.entity_name ? (
+                            <div>
+                              <div className="text-sm text-white">{log.entity_name}</div>
+                              <div className="text-xs text-gray-400">{log.entity_type} #{log.entity_id}</div>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          {oldValueDisplay ? (
+                            <pre className="text-xs text-gray-300 bg-gray-900 p-2 rounded max-w-xs overflow-auto">
+                              {oldValueDisplay}
+                            </pre>
+                          ) : (
+                            <span className="text-sm text-gray-500">—</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4">
+                          {newValueDisplay ? (
+                            <pre className="text-xs text-gray-300 bg-gray-900 p-2 rounded max-w-xs overflow-auto">
+                              {newValueDisplay}
+                            </pre>
+                          ) : (
+                            <span className="text-sm text-gray-500">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderSurveys = () => (
     <div>
       <div className="mb-6">
@@ -1501,6 +1719,18 @@ function App() {
           >
             Archives
           </button>
+          {isAdmin && (
+            <button
+              onClick={() => setActiveView('audit-logs')}
+              className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
+                activeView === 'audit-logs' 
+                  ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Audit Log
+            </button>
+          )}
           <button
             onClick={() => setActiveView('surveys')}
             className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
@@ -1520,6 +1750,7 @@ function App() {
         {activeView === 'responses' && renderResponses()}
         {activeView === 'pending' && renderPendingSurveys()}
         {activeView === 'archives' && renderArchives()}
+        {activeView === 'audit-logs' && renderAuditLog()}
         {activeView === 'surveys' && renderSurveys()}
       </main>
 
@@ -1550,8 +1781,9 @@ function App() {
                 {clientContacts.map(contact => (
                   <div 
                     key={contact.autotask_id}
-                    className="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-blue-500 transition-colors cursor-pointer"
+                    className={`bg-gray-700 rounded-lg p-4 border border-gray-600 transition-colors ${isAdmin ? 'hover:border-blue-500 cursor-pointer' : 'cursor-default'}`}
                     onClick={() => {
+                      if (!isAdmin) return;
                       if (contact.email) {
                         if (confirm(`Set ${contact.first_name} ${contact.last_name} as primary contact for surveys?`)) {
                           setPrimaryContact(selectingContactFor.id || selectingContactFor.autotask_id, contact.autotask_id);
@@ -1594,7 +1826,7 @@ function App() {
                         </div>
                       </div>
                       
-                      {contact.email && (
+                      {contact.email && isAdmin && (
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1686,10 +1918,11 @@ function App() {
                   </div>
                 )}
 
-                <div className="border-t border-gray-600 pt-3">
-                  <p className="text-sm text-gray-400 mb-2">Set survey frequency:</p>
-                  <div className="grid grid-cols-4 gap-2">
-                    {[30, 60, 90].map(days => (
+                {isAdmin && (
+                  <div className="border-t border-gray-600 pt-3">
+                    <p className="text-sm text-gray-400 mb-2">Set survey frequency:</p>
+                    <div className="grid grid-cols-4 gap-2">
+                      {[30, 60, 90].map(days => (
                       <button
                         key={days}
                         onClick={async () => {
@@ -1697,8 +1930,14 @@ function App() {
                             const response = await fetch(`https://northwind-survey-backend.onrender.com/api/clients/${selectedClient.id || selectedClient.autotask_id}/schedule-survey`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ days })
+                              body: JSON.stringify({ days, userEmail, userName })
                             });
+                            
+                            if (response.status === 403) {
+                              alert('❌ Admin access required');
+                              return;
+                            }
+                            
                             const result = await response.json();
                             if (result.success) {
                               // Update the selected client with new data
@@ -1729,8 +1968,14 @@ function App() {
                           const response = await fetch(`https://northwind-survey-backend.onrender.com/api/clients/${selectedClient.id || selectedClient.autotask_id}/schedule-survey`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ days: null })
+                            body: JSON.stringify({ days: null, userEmail, userName })
                           });
+                          
+                          if (response.status === 403) {
+                            alert('❌ Admin access required');
+                            return;
+                          }
+                          
                           const result = await response.json();
                           if (result.success) {
                             setSelectedClient({
@@ -1752,8 +1997,9 @@ function App() {
                     >
                       Never
                     </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="flex gap-3">
@@ -1812,16 +2058,18 @@ function App() {
                 >
                   📤 Send Survey Now
                 </button>
-                <button 
-                  onClick={async () => {
-                    setSelectingContactFor(selectedClient);
-                    setSelectedClient(null);
-                    await fetchClientContacts(selectedClient.id || selectedClient.autotask_id);
-                  }}
-                  className="flex-1 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-medium transition-colors"
-                >
-                  👥 Select Contact
-                </button>
+                {isAdmin && (
+                  <button 
+                    onClick={async () => {
+                      setSelectingContactFor(selectedClient);
+                      setSelectedClient(null);
+                      await fetchClientContacts(selectedClient.id || selectedClient.autotask_id);
+                    }}
+                    className="flex-1 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    👥 Select Contact
+                  </button>
+                )}
               </div>
             </div>
           </div>
