@@ -423,7 +423,7 @@ function App() {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Admin Actions */}
       <div className="lg:col-span-3 bg-red-900 bg-opacity-20 border border-red-700 rounded-lg p-4 mb-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h3 className="text-lg font-bold text-red-300 mb-1">⚠️ Admin Actions</h3>
             <p className="text-sm text-red-200">Dangerous operations - use with caution</p>
@@ -431,14 +431,14 @@ function App() {
           <button
             onClick={deleteAllSurveyData}
             disabled={syncing}
-            className="bg-red-600 hover:bg-red-700 disabled:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-medium transition-colors text-white"
+            className="w-full sm:w-auto bg-red-600 hover:bg-red-700 disabled:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed px-6 py-3 rounded-lg font-medium transition-colors text-white"
           >
             {syncing ? '⏳ Deleting...' : '🗑️ Delete All Survey Data'}
           </button>
         </div>
       </div>
 
-      <div className="lg:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
           <div className="flex items-center justify-between mb-2">
             <span className="text-gray-400 text-sm">Total Clients</span>
@@ -476,17 +476,17 @@ function App() {
 
         <div 
           onClick={() => setActiveView('pending')}
-          className="bg-gray-800 rounded-lg p-6 border border-gray-700 cursor-pointer hover:border-blue-500 hover:bg-gray-700 transition-all group"
+          className="bg-gray-800 rounded-lg p-4 sm:p-6 border border-gray-700 cursor-pointer hover:border-blue-500 hover:bg-gray-700 transition-all group"
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-400 text-sm">Pending Surveys</span>
-            <span className="text-3xl">📧</span>
+            <span className="text-gray-400 text-xs sm:text-sm">Pending Surveys</span>
+            <span className="text-2xl sm:text-3xl">📧</span>
           </div>
           <div className="flex items-center justify-between">
-            <div className="text-3xl font-bold text-white">{surveyStats?.pending || 0}</div>
-            <span className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity text-sm">View →</span>
+            <div className="text-2xl sm:text-3xl font-bold text-white">{surveyStats?.pending || 0}</div>
+            <span className="text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity text-xs sm:text-sm">View →</span>
           </div>
-          <div className="text-sm text-yellow-400 mt-1">Awaiting response</div>
+          <div className="text-xs sm:text-sm text-yellow-400 mt-1">Awaiting response</div>
         </div>
       </div>
 
@@ -622,29 +622,29 @@ function App() {
 
     return (
       <div>
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
           <div>
             <h2 className="text-2xl font-bold text-white">Client Management</h2>
             <p className="text-gray-400">Showing {filteredClients.length} of {clients.length} clients</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <button 
               onClick={syncCompanies}
               disabled={syncing}
-              className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {syncing ? '⏳ Syncing...' : '🔄 Sync Companies'}
             </button>
             <button 
               onClick={syncContacts}
               disabled={syncing}
-              className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {syncing ? '⏳ Syncing...' : '👥 Sync Contacts'}
             </button>
             <button 
               onClick={fetchClients}
-              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors"
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors"
             >
               🔄 Refresh
             </button>
@@ -664,7 +664,7 @@ function App() {
         <div className="flex gap-2 mb-6 flex-wrap">
           <button
             onClick={() => setClientFilter('all')}
-            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+            className={`px-3 py-2 sm:px-6 sm:py-3 rounded-lg text-sm sm:text-base font-medium transition-colors ${
               clientFilter === 'all'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
@@ -675,7 +675,7 @@ function App() {
           
           <button
             onClick={() => setClientFilter('managed')}
-            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+            className={`px-3 py-2 sm:px-6 sm:py-3 rounded-lg text-sm sm:text-base font-medium transition-colors ${
               clientFilter === 'managed'
                 ? 'bg-green-600 text-white'
                 : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
@@ -686,7 +686,7 @@ function App() {
           
           <button
             onClick={() => setClientFilter('break-fix')}
-            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+            className={`px-3 py-2 sm:px-6 sm:py-3 rounded-lg text-sm sm:text-base font-medium transition-colors ${
               clientFilter === 'break-fix'
                 ? 'bg-orange-600 text-white'
                 : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
@@ -710,10 +710,10 @@ function App() {
                 key={client.id || client.autotask_id} 
                 className="bg-gray-800 rounded-lg p-5 border border-gray-700 hover:border-gray-600 transition-colors"
               >
-                <div className="flex items-start justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3 flex-wrap">
-                      <h3 className="text-xl font-semibold text-white">{client.name}</h3>
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
+                      <h3 className="text-lg sm:text-xl font-semibold text-white break-words">{client.name}</h3>
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(client.score)}`}>
                         {getStatusText(client.score)}
                       </span>
@@ -755,10 +755,10 @@ function App() {
                       </div>
                     </div>
 
-                    <div className="flex gap-2 mt-3">
+                    <div className="flex flex-col sm:flex-row gap-2 mt-3">
                       <button
                         onClick={() => setSelectedClient(client)}
-                        className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                        className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                       >
                         View Details
                       </button>
@@ -767,7 +767,7 @@ function App() {
                           setSelectingContactFor(client);
                           await fetchClientContacts(client.id || client.autotask_id);
                         }}
-                        className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                        className="w-full sm:w-auto bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                       >
                         👥 Select Contact
                       </button>
@@ -775,7 +775,7 @@ function App() {
                   </div>
                   
                   {client.score > 0 && (
-                    <div className="text-right ml-4">
+                    <div className="text-center sm:text-right sm:ml-4">
                       <div className="text-3xl font-bold text-blue-400">{client.score}</div>
                       <div className="text-sm text-gray-400">Score</div>
                     </div>
@@ -1431,29 +1431,29 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <header className="bg-gradient-to-r from-blue-900 to-blue-700 border-b border-blue-600 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+      <header className="bg-gradient-to-r from-blue-900 to-blue-700 border-b border-blue-600 px-3 sm:px-6 py-3 sm:py-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2 sm:gap-4">
             <div className="bg-white rounded-lg p-2">
-              <div className="text-blue-900 font-bold text-xl">NW</div>
+              <div className="text-blue-900 font-bold text-lg sm:text-xl">NW</div>
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">Northwind Survey System</h1>
-              <p className="text-sm text-blue-200">Client Feedback & Satisfaction Monitoring</p>
+              <h1 className="text-xl sm:text-2xl font-bold text-white">Northwind Survey System</h1>
+              <p className="text-xs sm:text-sm text-blue-200">Client Feedback & Satisfaction Monitoring</p>
             </div>
           </div>
-          <div className="text-right">
+          <div className="text-left sm:text-right">
             <p className="text-sm font-medium text-white">Admin User</p>
             <p className="text-xs text-blue-200">Boise, Idaho</p>
           </div>
         </div>
       </header>
 
-      <nav className="bg-gray-800 border-b border-gray-700 px-6">
-        <div className="flex gap-1">
+      <nav className="bg-gray-800 border-b border-gray-700 px-3 sm:px-6">
+        <div className="flex gap-1 overflow-x-auto">
           <button
             onClick={() => setActiveView('dashboard')}
-            className={`px-6 py-3 font-medium transition-colors ${
+            className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
               activeView === 'dashboard' 
                 ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
                 : 'text-gray-400 hover:text-white'
@@ -1463,7 +1463,7 @@ function App() {
           </button>
           <button
             onClick={() => setActiveView('clients')}
-            className={`px-6 py-3 font-medium transition-colors ${
+            className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
               activeView === 'clients' 
                 ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
                 : 'text-gray-400 hover:text-white'
@@ -1473,7 +1473,7 @@ function App() {
           </button>
           <button
             onClick={() => setActiveView('responses')}
-            className={`px-6 py-3 font-medium transition-colors ${
+            className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
               activeView === 'responses' 
                 ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
                 : 'text-gray-400 hover:text-white'
@@ -1483,7 +1483,7 @@ function App() {
           </button>
           <button
             onClick={() => setActiveView('pending')}
-            className={`px-6 py-3 font-medium transition-colors ${
+            className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
               activeView === 'pending' 
                 ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
                 : 'text-gray-400 hover:text-white'
@@ -1493,7 +1493,7 @@ function App() {
           </button>
           <button
             onClick={() => setActiveView('archives')}
-            className={`px-6 py-3 font-medium transition-colors ${
+            className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
               activeView === 'archives' 
                 ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
                 : 'text-gray-400 hover:text-white'
@@ -1503,7 +1503,7 @@ function App() {
           </button>
           <button
             onClick={() => setActiveView('surveys')}
-            className={`px-6 py-3 font-medium transition-colors ${
+            className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
               activeView === 'surveys' 
                 ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
                 : 'text-gray-400 hover:text-white'
@@ -1514,7 +1514,7 @@ function App() {
         </div>
       </nav>
 
-      <main className="p-6">
+      <main className="p-3 sm:p-6">
         {activeView === 'dashboard' && renderDashboard()}
         {activeView === 'clients' && renderClients()}
         {activeView === 'responses' && renderResponses()}
