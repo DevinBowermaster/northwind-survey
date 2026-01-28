@@ -503,6 +503,7 @@ app.get('/api/surveys/statistics', (req, res) => {
       FROM surveys s
       JOIN clients c ON s.client_id = c.id
       WHERE s.completed_date IS NOT NULL
+        AND (s.archived = 0 OR s.archived IS NULL)
       ORDER BY s.completed_date DESC
       LIMIT 10
     `).all();
@@ -528,6 +529,7 @@ app.get('/api/surveys/responses', (req, res) => {
       FROM surveys s
       JOIN clients c ON s.client_id = c.id
       WHERE s.completed_date IS NOT NULL
+        AND (s.archived = 0 OR s.archived IS NULL)
       ORDER BY s.completed_date DESC
     `).all();
     
@@ -574,22 +576,19 @@ app.post('/api/surveys/:id/archive', (req, res) => {
 // Get all archived surveys
 app.get('/api/surveys/archived', (req, res) => {
   try {
-    // Note: Archived functionality requires migrate-add-archive.js to be run first
-    // Return empty array until migration is applied
-    const archived = [];
-    // const archived = db.prepare(`
-    //   SELECT 
-    //     s.*,
-    //     c.name as client_name,
-    //     (s.overall_satisfaction + s.response_time + s.technical_knowledge + s.communication + s.recommend_score) / 5.0 as avg_score,
-    //     strftime('%Y', s.archived_date) as year,
-    //     strftime('%m', s.archived_date) as month,
-    //     strftime('%Y-%m', s.archived_date) as year_month
-    //   FROM surveys s
-    //   JOIN clients c ON s.client_id = c.id
-    //   WHERE s.archived = 1
-    //   ORDER BY s.archived_date DESC
-    // `).all();
+    const archived = db.prepare(`
+      SELECT 
+        s.*,
+        c.name as client_name,
+        (s.overall_satisfaction + s.response_time + s.technical_knowledge + s.communication + s.recommend_score) / 5.0 as avg_score,
+        strftime('%Y', s.archived_date) as year,
+        strftime('%m', s.archived_date) as month,
+        strftime('%Y-%m', s.archived_date) as year_month
+      FROM surveys s
+      JOIN clients c ON s.client_id = c.id
+      WHERE s.archived = 1
+      ORDER BY s.archived_date DESC
+    `).all();
     
     // Organize by client, year, month
     const organized = {};
@@ -641,6 +640,7 @@ app.get('/api/surveys/pending', (req, res) => {
       JOIN clients c ON s.client_id = c.id
       WHERE s.sent_date IS NOT NULL 
         AND s.completed_date IS NULL
+        AND (s.archived IS NULL OR s.archived = 0)
       ORDER BY s.sent_date ASC
     `).all();
     

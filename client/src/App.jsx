@@ -809,15 +809,6 @@ function App() {
                 {syncing ? '⏳ Syncing...' : '👥 Sync Contacts'}
               </button>
             )}
-            {isAdmin && (
-              <button 
-                onClick={syncContractHealth}
-                disabled={syncing}
-                className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {syncing ? '⏳ Syncing...' : '📊 Sync Contract Health'}
-              </button>
-            )}
             <button 
               onClick={fetchClients}
               className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors"
@@ -1716,22 +1707,33 @@ function App() {
             <h2 className="text-2xl font-bold text-white mb-2">Contract Health</h2>
             <p className="text-gray-400">Monitor contract usage across all managed clients</p>
           </div>
-          <div className="flex gap-2">
-            <select
-              value={contractHealthSortBy}
-              onChange={(e) => setContractHealthSortBy(e.target.value)}
-              className="bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
-            >
-              <option value="name">Sort by Name</option>
-              <option value="usage">Sort by Usage %</option>
-            </select>
-            <button
-              onClick={fetchContractHealth}
-              disabled={contractHealthLoading}
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-50 px-4 py-2 rounded-lg font-medium transition-colors"
-            >
-              {contractHealthLoading ? '⏳ Loading...' : '🔄 Refresh'}
-            </button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex gap-2">
+              <select
+                value={contractHealthSortBy}
+                onChange={(e) => setContractHealthSortBy(e.target.value)}
+                className="bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
+              >
+                <option value="name">Sort by Name</option>
+                <option value="usage">Sort by Usage %</option>
+              </select>
+              <button
+                onClick={fetchContractHealth}
+                disabled={contractHealthLoading}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-50 px-4 py-2 rounded-lg font-medium transition-colors"
+              >
+                {contractHealthLoading ? '⏳ Loading...' : '🔄 Refresh'}
+              </button>
+            </div>
+            {isAdmin && (
+              <button
+                onClick={syncContractHealth}
+                disabled={syncing}
+                className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {syncing ? '⏳ Syncing...' : '📊 Sync Contract Health'}
+              </button>
+            )}
           </div>
         </div>
 
