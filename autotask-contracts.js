@@ -14,34 +14,117 @@ const { autotaskAPI } = require('./autotask');
  */
 async function getClientContract(companyId) {
   try {
-    console.log(`[getClientContract] Fetching active contract for company ID: ${companyId}`);
+    console.log(`[getClientContract] Fetching contracts for company ID: ${companyId}`);
     
     const params = {
       search: JSON.stringify({
         filter: [
-          { op: 'eq', field: 'companyID', value: companyId },
-          { op: 'eq', field: 'status', value: 'Active' }
+          { op: 'eq', field: 'companyID', value: companyId }
         ]
       })
     };
     
     const response = await autotaskAPI.get('/Contracts/query', { params });
-    const contracts = response.data.items || [];
+    const allContracts = response.data.items || [];
     
-    if (contracts.length === 0) {
+    console.log(`[getClientContract] Found ${allContracts.length} total contracts for company ID: ${companyId}`);
+    
+    // Filter for active contracts (status = 1 is Active, numeric ID)
+    // Also filter out status that might be 'Complete' or 'Canceled' if they're strings
+    const activeContracts = allContracts.filter(contract => {
+      const status = contract.status;
+      // Status 1 = Active (numeric)
+      if (typeof status === 'number') {
+        return status === 1;
+      }
+      // If it's a string, filter out Complete/Canceled
+      if (typeof status === 'string') {
+        const statusLower = status.toLowerCase();
+        return statusLower !== 'complete' && statusLower !== 'canceled';
+      }
+      // Default: include if status exists
+      return status != null;
+    });
+    
+    if (activeContracts.length === 0) {
       console.log(`[getClientContract] No active contract found for company ID: ${companyId}`);
       return null;
     }
     
     // Return the first active contract
-    const contract = contracts[0];
+    const contract = activeContracts[0];
+    
+    // Log the FULL contract object to see all available fields
+    console.log(`[getClientContract] Full contract object from API:`);
+    console.log(JSON.stringify(contract, null, 2));
+    
+    // Determine contract type and monthly allocation
+    const contractType = contract.contractType;
+    const contractCategory = contract.contractCategory;
+    let monthlyAllocation = null;
+    let displayType = 'Unknown';
+    let isUnlimited = false;
+    let blocks = null;
+    
+    if (contractType === 4 && contractCategory === 13) {
+      // Block Hours client - query blocks to get monthly allocation
+      displayType = 'Block Hours';
+      console.log(`[getClientContract] Identified as Block Hours contract`);
+      
+      try {
+        blocks = await getContractBlocks(contract.id);
+        if (blocks && blocks.length > 0) {
+          // Find any active block and use its "hours" field
+          const activeBlock = blocks.find(block => 
+            block.isActive === true || 
+            block.isActive === 1 || 
+            block.status === 'Active' ||
+            block.status === 1
+          );
+          
+          if (activeBlock && activeBlock.hours) {
+            monthlyAllocation = activeBlock.hours;
+            console.log(`[getClientContract] Monthly allocation from active block: ${monthlyAllocation} hours (from block ID ${activeBlock.id})`);
+          } else {
+            // If no active block found, use the most recent block
+            const mostRecentBlock = blocks[0];
+            monthlyAllocation = mostRecentBlock.hours || null;
+            console.log(`[getClientContract] No active block found, using most recent block: ${monthlyAllocation} hours (from block ID ${mostRecentBlock.id})`);
+          }
+        } else {
+          // Fallback to estimatedHours if no blocks found
+          monthlyAllocation = contract.estimatedHours || null;
+          console.log(`[getClientContract] No blocks found, using estimatedHours: ${monthlyAllocation}`);
+        }
+      } catch (error) {
+        console.warn(`[getClientContract] Error fetching blocks, using estimatedHours:`, error.message);
+        monthlyAllocation = contract.estimatedHours || null;
+      }
+    } else if (contractType === 7 || contractCategory === 12) {
+      // Unlimited client
+      monthlyAllocation = null;
+      displayType = 'Unlimited';
+      isUnlimited = true;
+      console.log(`[getClientContract] Identified as Unlimited contract`);
+    } else {
+      displayType = `Type ${contractType}, Category ${contractCategory}`;
+      console.log(`[getClientContract] Unknown contract type combination: Type ${contractType}, Category ${contractCategory}`);
+    }
+    
     const result = {
       id: contract.id,
-      contractType: contract.contractType,
-      contractCategory: contract.contractCategory
+      contractType: contractType, // Numeric ID
+      contractCategory: contractCategory, // Numeric ID
+      status: contract.status, // Numeric ID (1 = Active)
+      displayType: displayType, // "Block Hours", "Unlimited", or "Unknown"
+      monthlyAllocation: monthlyAllocation, // Hours for Block Hours, null for Unlimited
+      isUnlimited: isUnlimited,
+      estimatedHours: contract.estimatedHours, // Keep raw value for reference
+      blocks: blocks // Include blocks array for Block Hours contracts
     };
     
-    console.log(`[getClientContract] Found active contract ID: ${contract.id}, Type: ${contract.contractType}`);
+    console.log(`[getClientContract] Found active contract ID: ${contract.id}, Type: ${contract.contractType}, Category: ${contract.contractCategory}, Status: ${contract.status}`);
+    console.log(`[getClientContract] Contract Type: ${displayType}, Monthly Allocation: ${monthlyAllocation || 'Unlimited'}`);
     return result;
     
   } catch (error) {
@@ -54,20 +137,23 @@ async function getClientContract(companyId) {
 /**
  * Get contract blocks for a contract (to determine monthly allocation)
  * @param {number} contractId - Autotask contract ID
- * @returns {Promise<Object|null>} Most recent active block with hoursPurchased, or null if unlimited
+ * @returns {Promise<Array|null>} Array of all blocks with full fields, or null if no blocks
  */
 async function getContractBlocks(contractId) {
   try {
     console.log(`[getContractBlocks] Fetching blocks for contract ID: ${contractId}`);
     
-    const params = {
-      search: JSON.stringify({
-        filter: [
-          { op: 'eq', field: 'contractID', value: contractId }
-        ],
-        sort: [{ field: 'id', direction: 'DESC' }]
-      })
+    const searchFilter = {
+      filter: [
+        { op: 'eq', field: 'contractID', value: contractId }
+      ]
     };
+    
+    const params = {
+      search: JSON.stringify(searchFilter)
+    };
+    
+    console.log(`[getContractBlocks] Query: GET /ContractBlocks/query?search=${encodeURIComponent(JSON.stringify(searchFilter))}`);
     
     const response = await autotaskAPI.get('/ContractBlocks/query', { params });
     const blocks = response.data.items || [];
@@ -77,21 +163,31 @@ async function getContractBlocks(contractId) {
       return null;
     }
     
-    // Get the most recent active block
-    const activeBlocks = blocks.filter(block => block.isActive === true || block.isActive === 1);
+    // Sort by ID descending to get most recent first
+    blocks.sort((a, b) => (b.id || 0) - (a.id || 0));
     
-    if (activeBlocks.length === 0) {
-      console.log(`[getContractBlocks] No active blocks found for contract ID: ${contractId}`);
-      return null;
+    console.log(`[getContractBlocks] Found ${blocks.length} blocks for contract ID: ${contractId}`);
+    
+    // Return all blocks with full fields
+    const result = blocks.map(block => ({
+      id: block.id,
+      contractID: block.contractID,
+      hours: block.hours || block.hoursPurchased || null,
+      hoursApproved: block.hoursApproved || null,
+      startDate: block.startDate || null,
+      endDate: block.endDate || null,
+      status: block.status || null,
+      isActive: block.isActive || null,
+      // Include all other fields for reference
+      raw: block
+    }));
+    
+    // Log the most recent block details
+    if (result.length > 0) {
+      const mostRecent = result[0];
+      console.log(`[getContractBlocks] Most recent block: ID ${mostRecent.id}, Hours: ${mostRecent.hours}, Status: ${mostRecent.status}`);
     }
     
-    // Return the most recent active block (already sorted by ID DESC)
-    const block = activeBlocks[0];
-    const result = {
-      hoursPurchased: block.hoursPurchased || block.hours || null
-    };
-    
-    console.log(`[getContractBlocks] Found active block with ${result.hoursPurchased} hours purchased`);
     return result;
     
   } catch (error) {
@@ -122,21 +218,61 @@ async function getMonthlyTimeEntries(contractId, year, month) {
     
     console.log(`[getMonthlyTimeEntries] Date range: ${startDateStr} to ${endDateStr}`);
     
-    const params = {
-      search: JSON.stringify({
-        filter: [
-          { op: 'eq', field: 'contractID', value: contractId },
-          { op: 'gte', field: 'dateWorked', value: startDateStr },
-          { op: 'lte', field: 'dateWorked', value: endDateStr },
-          { op: 'eq', field: 'billableType', value: 'Billable' }
-        ]
-      })
-    };
+    // Try to get billable time entries - try different field names
+    let timeEntries = [];
+    let allTimeEntries = [];
     
-    const response = await autotaskAPI.get('/TimeEntries/query', { params });
-    const timeEntries = response.data.items || [];
-    
-    console.log(`[getMonthlyTimeEntries] Found ${timeEntries.length} billable time entries`);
+    // First, try with isBillable filter (boolean)
+    try {
+      const paramsWithIsBillable = {
+        search: JSON.stringify({
+          filter: [
+            { op: 'eq', field: 'contractID', value: contractId },
+            { op: 'gte', field: 'dateWorked', value: startDateStr },
+            { op: 'lte', field: 'dateWorked', value: endDateStr },
+            { op: 'eq', field: 'isBillable', value: true }
+          ]
+        })
+      };
+      
+      const response = await autotaskAPI.get('/TimeEntries/query', { params: paramsWithIsBillable });
+      allTimeEntries = response.data.items || [];
+      timeEntries = allTimeEntries;
+      console.log(`[getMonthlyTimeEntries] Found ${timeEntries.length} time entries with isBillable=true`);
+    } catch (error) {
+      console.log(`[getMonthlyTimeEntries] isBillable filter failed, trying without billable filter...`);
+      
+      // If that fails, try without billable filter (get all entries)
+      const paramsNoBillable = {
+        search: JSON.stringify({
+          filter: [
+            { op: 'eq', field: 'contractID', value: contractId },
+            { op: 'gte', field: 'dateWorked', value: startDateStr },
+            { op: 'lte', field: 'dateWorked', value: endDateStr }
+          ]
+        })
+      };
+      
+      const response = await autotaskAPI.get('/TimeEntries/query', { params: paramsNoBillable });
+      allTimeEntries = response.data.items || [];
+      
+      // Filter in JavaScript for billable entries (check isBillable field if it exists)
+      timeEntries = allTimeEntries.filter(entry => {
+        // If isBillable exists, use it
+        if (entry.isBillable !== undefined) {
+          return entry.isBillable === true || entry.isBillable === 1;
+        }
+        // If billingCodeType exists, check if it's billable (may need to adjust based on actual values)
+        if (entry.billingCodeType !== undefined) {
+          // Common billable codes are usually > 0, but we'll include all for now
+          return entry.billingCodeType != null;
+        }
+        // If no billable field, include all entries
+        return true;
+      });
+      
+      console.log(`[getMonthlyTimeEntries] Found ${allTimeEntries.length} total time entries, ${timeEntries.length} appear to be billable`);
+    }
     
     // Calculate total hours and cost
     let totalHours = 0;
