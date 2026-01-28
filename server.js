@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const db = require('./database');
 const emailService = require('./email-service');
 const { startScheduler } = require('./scheduler');
+const contractUsageRoutes = require('./backend/routes/contract-usage');
 
 const app = express();
 
@@ -63,6 +64,9 @@ function logAuditEvent(userEmail, userName, action, entityType, entityId, oldVal
 
 // Start the survey scheduler
 startScheduler();
+
+// Mount route modules
+app.use('/api', contractUsageRoutes);
 
 // Home page
 app.get('/', (req, res) => {
