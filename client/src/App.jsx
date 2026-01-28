@@ -409,6 +409,37 @@ function App() {
     }
   };
 
+  const syncContractHealth = async () => {
+    if (!confirm('Sync Contract Health from Autotask? This may take a while.')) return;
+    
+    try {
+      setSyncing(true);
+      const response = await fetch(`${API_URL}/api/admin/sync-contract-health`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userEmail, userName })
+      });
+      
+      if (response.status === 403) {
+        alert('❌ Admin access required');
+        return;
+      }
+      
+      const result = await response.json();
+      if (result.success) {
+        alert('✅ Contract Health sync completed.\n\nYou can now refresh the Contract Health tab to see updated data.');
+        fetchContractHealth();
+      } else {
+        alert(`❌ Contract Health sync failed: ${result.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error syncing contract health:', error);
+      alert('❌ Failed to sync Contract Health');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const setPrimaryContact = async (clientId, contactId) => {
     try {
       const response = await fetch(`${API_URL}/api/clients/${clientId}/set-primary-contact`, {
@@ -776,6 +807,15 @@ function App() {
                 className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {syncing ? '⏳ Syncing...' : '👥 Sync Contacts'}
+              </button>
+            )}
+            {isAdmin && (
+              <button 
+                onClick={syncContractHealth}
+                disabled={syncing}
+                className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {syncing ? '⏳ Syncing...' : '📊 Sync Contract Health'}
               </button>
             )}
             <button 

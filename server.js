@@ -6,6 +6,9 @@ const db = require('./database');
 const emailService = require('./email-service');
 const { startScheduler } = require('./scheduler');
 const contractUsageRoutes = require('./backend/routes/contract-usage');
+const { migrateAddArchive } = require('./migrate-add-archive');
+const { migrateContractUsage } = require('./backend/migrate-contract-usage');
+const { syncContractUsage } = require('./backend/sync-contract-health');
 
 const app = express();
 
@@ -60,6 +63,14 @@ function logAuditEvent(userEmail, userName, action, entityType, entityId, oldVal
     console.error('Error logging audit event:', error);
     // Don't throw - audit logging failures shouldn't break the app
   }
+}
+
+// Run idempotent migrations on startup so schema is always up to date
+try {
+  migrateAddArchive();
+  migrateContractUsage();
+} catch (err) {
+  console.error('Error running startup migrations:', err);
 }
 
 // Start the survey scheduler
@@ -229,6 +240,18 @@ app.post('/api/clients/:id/set-primary-contact', (req, res) => {
   } catch (error) {
     console.error('Error setting primary contact:', error);
     res.status(500).json({ error: 'Failed to set primary contact' });
+  }
+});
+
+// Manually trigger Contract Health sync (admin only)
+app.post('/api/admin/sync-contract-health', isAdmin, async (req, res) => {
+  try {
+    console.log('🚀 Admin requested Contract Health sync');
+    await syncContractUsage();
+    res.json({ success: true, message: 'Contract Health sync completed. Check logs for details.' });
+  } catch (error) {
+    console.error('Error running Contract Health sync:', error);
+    res.status(500).json({ success: false, error: 'Failed to sync contract health', message: error.message });
   }
 });
 
