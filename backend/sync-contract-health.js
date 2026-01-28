@@ -6,7 +6,7 @@ const { getClientContract, getMonthlyTimeEntries } = require('../autotask-contra
 // Use persistent disk path in production, local file in development
 const dbPath = process.env.NODE_ENV === 'production' 
   ? '/opt/render/project/src/data/northwind.db'
-  : 'northwind.db';
+  : path.join(__dirname, '..', 'northwind.db');
 
 // Create/open database file
 const db = new Database(dbPath);
