@@ -1,7 +1,9 @@
 // Skip service worker caching in development (localhost)
 const IS_DEV = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
 
-const CACHE_NAME = 'northwind-survey-v1';
+// Bump CACHE_NAME whenever you deploy a new frontend build to force clients
+// to pick up the latest HTML/JS instead of a stale cached shell.
+const CACHE_NAME = 'northwind-survey-v2';
 const STATIC_CACHE_URLS = [
   '/',
   '/index.html',
@@ -71,6 +73,26 @@ self.addEventListener('fetch', (event) => {
 
   // Skip non-GET requests
   if (request.method !== 'GET') {
+    return;
+  }
+
+  // For navigation requests (app shell), use network-first so users get the
+  // latest HTML/JS on each deploy, with cached index.html as a fallback.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // Cache the latest shell for offline use
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put('/', responseToCache);
+          });
+          return response;
+        })
+        .catch(() => {
+          return caches.match('/index.html') || Response.error();
+        })
+    );
     return;
   }
 
