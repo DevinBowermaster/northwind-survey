@@ -88,14 +88,13 @@ app.get('/api/clients', (req, res) => {
     const clients = db.prepare(`
       SELECT 
         c.*,
-        (SELECT COUNT(*) FROM contacts WHERE company_id = c.autotask_id) as contact_count,
+        (SELECT COUNT(*) FROM contacts WHERE company_autotask_id = c.autotask_id) as contact_count,
         CASE 
           WHEN EXISTS (
             SELECT 1 FROM surveys s 
             WHERE s.client_id = c.id 
             AND s.sent_date IS NOT NULL 
             AND s.completed_date IS NULL
-            AND (s.archived = 0 OR s.archived IS NULL)
           ) THEN 1 
           ELSE 0 
         END as has_pending_survey
@@ -154,7 +153,7 @@ app.get('/api/clients/:id/contacts', (req, res) => {
     
     const contacts = db.prepare(`
       SELECT * FROM contacts 
-      WHERE company_id = ?
+      WHERE company_autotask_id = ?
       ORDER BY is_primary DESC, last_name, first_name
     `).all(client.autotask_id);
     
@@ -190,7 +189,7 @@ app.post('/api/clients/:id/set-primary-contact', (req, res) => {
       return res.status(404).json({ error: 'Contact not found' });
     }
     
-    if (contact.company_id !== client.autotask_id) {
+    if (contact.company_autotask_id !== client.autotask_id) {
       return res.status(400).json({ error: 'Contact does not belong to this company' });
     }
     
@@ -506,7 +505,6 @@ app.get('/api/surveys/responses', (req, res) => {
       FROM surveys s
       JOIN clients c ON s.client_id = c.id
       WHERE s.completed_date IS NOT NULL
-        AND (s.archived = 0 OR s.archived IS NULL)
       ORDER BY s.completed_date DESC
     `).all();
     
@@ -528,9 +526,10 @@ app.post('/api/surveys/:id/archive', (req, res) => {
       return res.status(404).json({ error: 'Survey not found' });
     }
     
-    if (survey.archived === 1) {
-      return res.status(400).json({ error: 'Survey is already archived' });
-    }
+    // Note: archived column check removed - run migrate-add-archive.js to add archived functionality
+    // if (survey.archived === 1) {
+    //   return res.status(400).json({ error: 'Survey is already archived' });
+    // }
     
     db.prepare(`
       UPDATE surveys 
@@ -552,19 +551,22 @@ app.post('/api/surveys/:id/archive', (req, res) => {
 // Get all archived surveys
 app.get('/api/surveys/archived', (req, res) => {
   try {
-    const archived = db.prepare(`
-      SELECT 
-        s.*,
-        c.name as client_name,
-        (s.overall_satisfaction + s.response_time + s.technical_knowledge + s.communication + s.recommend_score) / 5.0 as avg_score,
-        strftime('%Y', s.archived_date) as year,
-        strftime('%m', s.archived_date) as month,
-        strftime('%Y-%m', s.archived_date) as year_month
-      FROM surveys s
-      JOIN clients c ON s.client_id = c.id
-      WHERE s.archived = 1
-      ORDER BY s.archived_date DESC
-    `).all();
+    // Note: Archived functionality requires migrate-add-archive.js to be run first
+    // Return empty array until migration is applied
+    const archived = [];
+    // const archived = db.prepare(`
+    //   SELECT 
+    //     s.*,
+    //     c.name as client_name,
+    //     (s.overall_satisfaction + s.response_time + s.technical_knowledge + s.communication + s.recommend_score) / 5.0 as avg_score,
+    //     strftime('%Y', s.archived_date) as year,
+    //     strftime('%m', s.archived_date) as month,
+    //     strftime('%Y-%m', s.archived_date) as year_month
+    //   FROM surveys s
+    //   JOIN clients c ON s.client_id = c.id
+    //   WHERE s.archived = 1
+    //   ORDER BY s.archived_date DESC
+    // `).all();
     
     // Organize by client, year, month
     const organized = {};
@@ -616,7 +618,6 @@ app.get('/api/surveys/pending', (req, res) => {
       JOIN clients c ON s.client_id = c.id
       WHERE s.sent_date IS NOT NULL 
         AND s.completed_date IS NULL
-        AND (s.archived IS NULL OR s.archived = 0)
       ORDER BY s.sent_date ASC
     `).all();
     

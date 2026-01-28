@@ -1,3 +1,6 @@
+// Skip service worker caching in development (localhost)
+const IS_DEV = self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1';
+
 const CACHE_NAME = 'northwind-survey-v1';
 const STATIC_CACHE_URLS = [
   '/',
@@ -8,7 +11,11 @@ const STATIC_CACHE_URLS = [
 
 // Install event - cache static assets
 self.addEventListener('install', (event) => {
-  console.log('[Service Worker] Installing...');
+  console.log('[Service Worker] Installing...', IS_DEV ? '(DEV MODE - skipping cache)' : '');
+  if (IS_DEV) {
+    self.skipWaiting(); // Activate immediately but skip caching
+    return;
+  }
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
@@ -24,7 +31,10 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('[Service Worker] Activating...');
+  console.log('[Service Worker] Activating...', IS_DEV ? '(DEV MODE - skipping cache)' : '');
+  if (IS_DEV) {
+    return self.clients.claim(); // Take control but skip cache cleanup
+  }
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -44,6 +54,12 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
+
+  // In development mode, skip all caching - just pass through to network
+  if (IS_DEV) {
+    event.respondWith(fetch(request));
+    return;
+  }
 
   // Skip caching authentication requests - bypass service worker for OAuth flows
   if (url.pathname.includes('/login/callback') || 

@@ -3,6 +3,26 @@ const router = express.Router();
 const db = require('../../database');
 
 /**
+ * Contract Usage API Routes
+ * 
+ * Table: contract_usage
+ * Columns:
+ * - id (PRIMARY KEY)
+ * - client_id (INTEGER, FK to clients.id)
+ * - client_name (TEXT)
+ * - autotask_company_id (INTEGER) - NOTE: NOT "company_id"
+ * - contract_id (INTEGER)
+ * - contract_type (TEXT)
+ * - month (TEXT, format: YYYY-MM)
+ * - monthly_hours (REAL)
+ * - hours_used (REAL)
+ * - hours_remaining (REAL)
+ * - percentage_used (REAL)
+ * - total_cost (REAL)
+ * - synced_at (TEXT)
+ */
+
+/**
  * GET /contract-usage
  * 
  * Query parameters:
@@ -30,7 +50,7 @@ router.get('/contract-usage', (req, res) => {
       return res.status(404).json({ error: 'Client not found' });
     }
     
-    // Get contract usage data for this client
+    // Get contract usage data for this client (all recorded months, newest first)
     const usageData = db.prepare(`
       SELECT 
         client_name,
@@ -39,7 +59,8 @@ router.get('/contract-usage', (req, res) => {
         month,
         hours_used,
         hours_remaining,
-        percentage_used
+        percentage_used,
+        total_cost
       FROM contract_usage
       WHERE client_id = ?
       ORDER BY month DESC
@@ -69,7 +90,8 @@ router.get('/contract-usage', (req, res) => {
           allocated: null,
           used: record.hours_used || 0,
           remaining: null,
-          percentage: null
+          percentage: null,
+          cost: record.total_cost || 0
         };
       }
       
@@ -79,7 +101,8 @@ router.get('/contract-usage', (req, res) => {
         allocated: record.monthly_hours || null,
         used: record.hours_used || 0,
         remaining: record.hours_remaining !== null ? record.hours_remaining : null,
-        percentage: record.percentage_used !== null ? Math.round(record.percentage_used) : null
+        percentage: record.percentage_used !== null ? Math.round(record.percentage_used) : null,
+        cost: record.total_cost || 0
       };
     });
     
@@ -93,6 +116,66 @@ router.get('/contract-usage', (req, res) => {
     
   } catch (error) {
     console.error('Error fetching contract usage:', error);
+    res.status(500).json({ error: 'Internal server error', message: error.message });
+  }
+});
+
+/**
+ * GET /contract-usage/all
+ * 
+ * Returns contract usage data for all managed clients for the most recent month
+ * Returns an array of client objects with current month usage
+ */
+router.get('/contract-usage/all', (req, res) => {
+  try {
+    // Get current month in YYYY-MM format (2026-01)
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    
+    // Get all managed clients with their current month contract usage
+    const clients = db.prepare(`
+      SELECT 
+        c.id as clientId,
+        cu.client_name as clientName,
+        cu.contract_type as contractType,
+        cu.monthly_hours as monthlyHours,
+        cu.month,
+        cu.hours_used,
+        cu.hours_remaining,
+        cu.percentage_used,
+        cu.total_cost
+      FROM clients c
+      LEFT JOIN contract_usage cu ON c.id = cu.client_id AND cu.month = ?
+      WHERE c.company_type = 'managed' AND c.autotask_id IS NOT NULL
+      ORDER BY cu.client_name ASC
+    `).all(currentMonth);
+    
+    // Format response array
+    const result = clients
+      .filter(client => client.clientName) // Only include clients with contract usage data
+      .map(client => {
+        const isUnlimited = client.contractType === 'Unlimited';
+        
+        return {
+          clientId: client.clientId,
+          clientName: client.clientName,
+          contractType: client.contractType || null,
+          monthlyHours: isUnlimited ? null : (client.monthlyHours || null),
+          currentMonth: {
+            month: client.month || currentMonth,
+            allocated: isUnlimited ? null : (client.monthlyHours || null),
+            used: client.hours_used || 0,
+            remaining: isUnlimited ? null : (client.hours_remaining !== null ? client.hours_remaining : null),
+            percentage: isUnlimited ? null : (client.percentage_used !== null ? Math.round(client.percentage_used) : null),
+            cost: client.total_cost || 0
+          }
+        };
+      });
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('Error fetching all contract usage:', error);
     res.status(500).json({ error: 'Internal server error', message: error.message });
   }
 });

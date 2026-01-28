@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useOktaAuth } from '@okta/okta-react';
 import {
   Chart as ChartJS,
@@ -27,6 +27,14 @@ ChartJS.register(
 );
 
 function App() {
+  // API URL based on environment
+  const API_URL = import.meta.env.DEV 
+    ? 'http://localhost:3000' 
+    : 'https://northwind-survey-backend.onrender.com';
+
+  console.log('DEV mode:', import.meta.env.DEV);
+  console.log('API_URL:', API_URL);
+
   const { authState } = useOktaAuth();
   const [activeView, setActiveView] = useState('dashboard');
   const [clients, setClients] = useState([]);
@@ -56,6 +64,10 @@ function App() {
   const [userName, setUserName] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [auditLogs, setAuditLogs] = useState([]);
+  const [contractHealthData, setContractHealthData] = useState([]);
+  const [contractHealthLoading, setContractHealthLoading] = useState(false);
+  const [expandedContractClients, setExpandedContractClients] = useState(new Set());
+  const [contractHealthSortBy, setContractHealthSortBy] = useState('name'); // 'name' or 'usage'
   const RESPONSES_PER_PAGE = 10;
 
   // Admin email list (must match server.js)
@@ -112,10 +124,49 @@ function App() {
     }
   }, [activeView]);
 
+  // Fetch contract health data when switching to contract health view
+  useEffect(() => {
+    if (activeView === 'contract-health') {
+      fetchContractHealth();
+    }
+  }, [activeView]);
+
+  const fetchContractHealth = async () => {
+    try {
+      setContractHealthLoading(true);
+      const response = await fetch(`${API_URL}/api/contract-usage/all`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch contract health data');
+      }
+      
+      const data = await response.json();
+      // API returns array directly, not wrapped in object
+      setContractHealthData(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error fetching contract health:', error);
+      setContractHealthData([]);
+    } finally {
+      setContractHealthLoading(false);
+    }
+  };
+
+  const toggleContractClient = (clientId) => {
+    setExpandedContractClients(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(clientId)) {
+        newSet.delete(clientId);
+      } else {
+        newSet.add(clientId);
+      }
+      return newSet;
+    });
+  };
+
   const fetchClients = async () => {
     try {
       setLoading(true);
-      const response = await fetch('https://northwind-survey-backend.onrender.com/api/clients');
+      const response = await fetch(`${API_URL}/api/clients`);
       const data = await response.json();
       setClients(data);
       setLoading(false);
@@ -127,7 +178,7 @@ function App() {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('https://northwind-survey-backend.onrender.com/api/stats/by-type');
+      const response = await fetch(`${API_URL}/api/stats/by-type`);
       const data = await response.json();
       setStats(data);
     } catch (err) {
@@ -137,7 +188,7 @@ function App() {
 
   const fetchSurveyStatistics = async () => {
     try {
-      const response = await fetch('https://northwind-survey-backend.onrender.com/api/surveys/statistics');
+      const response = await fetch(`${API_URL}/api/surveys/statistics`);
       const data = await response.json();
       setSurveyStats(data.stats);
       setRecentResponses(data.recent_responses);
@@ -148,7 +199,7 @@ function App() {
 
   const fetchAllResponses = async () => {
     try {
-      const response = await fetch('https://northwind-survey-backend.onrender.com/api/surveys/responses');
+      const response = await fetch(`${API_URL}/api/surveys/responses`);
       const data = await response.json();
       setAllResponses(data);
     } catch (err) {
@@ -158,7 +209,7 @@ function App() {
 
   const fetchPendingSurveys = async () => {
     try {
-      const response = await fetch('https://northwind-survey-backend.onrender.com/api/surveys/pending');
+      const response = await fetch(`${API_URL}/api/surveys/pending`);
       const data = await response.json();
       setPendingSurveys(data.surveys || []);
     } catch (err) {
@@ -169,7 +220,7 @@ function App() {
 
   const fetchArchivedSurveys = async () => {
     try {
-      const response = await fetch('https://northwind-survey-backend.onrender.com/api/surveys/archived');
+      const response = await fetch(`${API_URL}/api/surveys/archived`);
       const data = await response.json();
       setArchivedSurveys(data.organized || {});
     } catch (err) {
@@ -180,7 +231,7 @@ function App() {
 
   const fetchAuditLogs = async () => {
     try {
-      const response = await fetch(`https://northwind-survey-backend.onrender.com/api/audit-logs?userEmail=${encodeURIComponent(userEmail || '')}`);
+      const response = await fetch(`${API_URL}/api/audit-logs?userEmail=${encodeURIComponent(userEmail || '')}`);
       
       if (response.status === 403) {
         alert('❌ Admin access required');
@@ -210,7 +261,7 @@ function App() {
 
   const fetchTemplates = async () => {
     try {
-      const response = await fetch('https://northwind-survey-backend.onrender.com/api/survey-templates');
+      const response = await fetch(`${API_URL}/api/survey-templates`);
       const data = await response.json();
       setSurveyTemplates(data);
     } catch (err) {
@@ -221,8 +272,8 @@ function App() {
   const saveTemplate = async (template) => {
     try {
       const url = template.id 
-        ? `https://northwind-survey-backend.onrender.com/api/survey-templates/${template.id}`
-        : 'https://northwind-survey-backend.onrender.com/api/survey-templates';
+        ? `${API_URL}/api/survey-templates/${template.id}`
+        : `${API_URL}/api/survey-templates`;
       
       const response = await fetch(url, {
         method: template.id ? 'PUT' : 'POST',
@@ -243,7 +294,7 @@ function App() {
 
   const fetchClientContacts = async (clientId) => {
     try {
-      const response = await fetch(`https://northwind-survey-backend.onrender.com/api/clients/${clientId}/contacts`);
+      const response = await fetch(`${API_URL}/api/clients/${clientId}/contacts`);
       const data = await response.json();
       setClientContacts(data);
     } catch (error) {
@@ -257,7 +308,7 @@ function App() {
     
     try {
       setSyncing(true);
-      const response = await fetch('https://northwind-survey-backend.onrender.com/api/sync/companies', {
+      const response = await fetch(`${API_URL}/api/sync/companies`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userEmail, userName })
@@ -290,7 +341,7 @@ function App() {
     
     try {
       setSyncing(true);
-      const response = await fetch('https://northwind-survey-backend.onrender.com/api/sync/contacts', {
+      const response = await fetch(`${API_URL}/api/sync/contacts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userEmail, userName })
@@ -327,7 +378,7 @@ function App() {
     
     try {
       setSyncing(true);
-      const response = await fetch('https://northwind-survey-backend.onrender.com/api/admin/delete-all-surveys', {
+      const response = await fetch(`${API_URL}/api/admin/delete-all-surveys`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userEmail, userName })
@@ -360,7 +411,7 @@ function App() {
 
   const setPrimaryContact = async (clientId, contactId) => {
     try {
-      const response = await fetch(`https://northwind-survey-backend.onrender.com/api/clients/${clientId}/set-primary-contact`, {
+      const response = await fetch(`${API_URL}/api/clients/${clientId}/set-primary-contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contactId, userEmail, userName })
@@ -1080,7 +1131,7 @@ function App() {
                               if (!confirm('Archive this survey response?')) return;
                               
                               try {
-                                const archiveResponse = await fetch(`https://northwind-survey-backend.onrender.com/api/surveys/${surveyId}/archive`, {
+                                const archiveResponse = await fetch(`${API_URL}/api/surveys/${surveyId}/archive`, {
                                   method: 'POST'
                                 });
                                 const result = await archiveResponse.json();
@@ -1142,7 +1193,7 @@ function App() {
       if (!confirm('Resend survey email to this client?')) return;
       
       try {
-        const response = await fetch(`https://northwind-survey-backend.onrender.com/api/surveys/${surveyId}/resend`, {
+        const response = await fetch(`${API_URL}/api/surveys/${surveyId}/resend`, {
           method: 'POST'
         });
         const result = await response.json();
@@ -1596,6 +1647,581 @@ function App() {
     );
   };
 
+  const [contractHealthDetailClient, setContractHealthDetailClient] = useState(null);
+  const [contractHealthDetailData, setContractHealthDetailData] = useState(null);
+  const [contractHealthDetailLoading, setContractHealthDetailLoading] = useState(false);
+  const [contractHealthExportClient, setContractHealthExportClient] = useState(null);
+  const [contractHealthExportData, setContractHealthExportData] = useState(null);
+  const [contractHealthExportLoading, setContractHealthExportLoading] = useState(false);
+  const [contractHealthExportRange, setContractHealthExportRange] = useState('3'); // '3' | '6' | 'year'
+  const [contractHealthExportYear, setContractHealthExportYear] = useState('');
+
+  const renderContractHealth = () => {
+    // Sort data
+    const sortedData = [...contractHealthData].sort((a, b) => {
+      if (contractHealthSortBy === 'name') {
+        return a.clientName.localeCompare(b.clientName);
+      } else if (contractHealthSortBy === 'usage') {
+        const aPercent = a.currentMonth?.percentage || 0;
+        const bPercent = b.currentMonth?.percentage || 0;
+        return bPercent - aPercent; // Descending (highest first)
+      }
+      return 0;
+    });
+
+    return (
+      <div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-white mb-2">Contract Health</h2>
+            <p className="text-gray-400">Monitor contract usage across all managed clients</p>
+          </div>
+          <div className="flex gap-2">
+            <select
+              value={contractHealthSortBy}
+              onChange={(e) => setContractHealthSortBy(e.target.value)}
+              className="bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
+            >
+              <option value="name">Sort by Name</option>
+              <option value="usage">Sort by Usage %</option>
+            </select>
+            <button
+              onClick={fetchContractHealth}
+              disabled={contractHealthLoading}
+              className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-50 px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              {contractHealthLoading ? '⏳ Loading...' : '🔄 Refresh'}
+            </button>
+          </div>
+        </div>
+
+        {contractHealthLoading ? (
+          <div className="bg-gray-800 rounded-lg p-12 border border-gray-700 text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4"></div>
+            <p className="text-gray-400">Loading contract health data...</p>
+          </div>
+        ) : sortedData.length === 0 ? (
+          <div className="bg-gray-800 rounded-lg p-12 border border-gray-700 text-center">
+            <div className="text-6xl mb-4">📊</div>
+            <h3 className="text-xl font-bold text-white mb-2">No Contract Data</h3>
+            <p className="text-gray-400">
+              Contract usage data will appear here once synced from Autotask.
+            </p>
+          </div>
+        ) : (
+          <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Client Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Contract Type</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Block Hours</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Hours Used (This Month)</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">% Used</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {sortedData.map(client => {
+                    const percentage = client.currentMonth?.percentage;
+                    
+                    // Determine row background color based on usage
+                    let rowBgClass = '';
+                    if (client.contractType === 'Block Hours' && percentage !== null) {
+                      if (percentage >= 91) {
+                        rowBgClass = 'bg-red-900 bg-opacity-20';
+                      } else if (percentage >= 71) {
+                        rowBgClass = 'bg-yellow-900 bg-opacity-20';
+                      }
+                    }
+                    
+                    // Status indicator color
+                    let statusColor = 'text-gray-400';
+                    let statusIcon = '—';
+                    if (client.contractType === 'Block Hours' && percentage !== null) {
+                      if (percentage >= 91) {
+                        statusColor = 'text-red-400';
+                        statusIcon = '🔴';
+                      } else if (percentage >= 71) {
+                        statusColor = 'text-yellow-400';
+                        statusIcon = '🟡';
+                      } else {
+                        statusColor = 'text-green-400';
+                        statusIcon = '🟢';
+                      }
+                    } else if (client.contractType === 'Unlimited') {
+                      statusColor = 'text-purple-400';
+                      statusIcon = '♾️';
+                    }
+                    
+                    const usedHours = client.currentMonth?.used || 0;
+                    const allocatedHours = client.monthlyHours || null;
+                    
+                    return (
+                      <React.Fragment key={client.clientId}>
+                        <tr className={`hover:bg-gray-700 transition-colors ${rowBgClass}`}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <button
+                              type="button"
+                              className="text-sm font-medium text-white text-left underline-offset-2 hover:underline"
+                              onClick={() => {
+                                setContractHealthDetailClient(client);
+                                setContractHealthDetailLoading(true);
+                                setActiveView('contract-health-detail');
+                                fetch(`${API_URL}/api/contract-usage?clientId=${client.clientId}`)
+                                  .then((res) => {
+                                    if (!res.ok) {
+                                      throw new Error('Failed to fetch contract usage history');
+                                    }
+                                    return res.json();
+                                  })
+                                  .then((data) => {
+                                    setContractHealthDetailData(data);
+                                  })
+                                  .catch((error) => {
+                                    console.error('Error fetching contract usage history:', error);
+                                    setContractHealthDetailData(null);
+                                  })
+                                  .finally(() => {
+                                    setContractHealthDetailLoading(false);
+                                  });
+                              }}
+                            >
+                              {client.clientName}
+                            </button>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {client.contractType === 'Block Hours' ? (
+                              <span className="px-2 py-1 rounded text-xs font-medium bg-blue-600">
+                                📦 Block Hours
+                              </span>
+                            ) : client.contractType === 'Unlimited' ? (
+                              <span className="px-2 py-1 rounded text-xs font-medium bg-purple-600">
+                                ♾️ Unlimited
+                              </span>
+                            ) : (
+                              <span className="text-sm text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <div className="text-sm text-white">
+                              {client.contractType === 'Block Hours' && allocatedHours
+                                ? `${allocatedHours} hrs`
+                                : client.contractType === 'Unlimited'
+                                  ? 'N/A'
+                                  : '—'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <div className="text-sm text-white">
+                              {client.contractType === 'Unlimited'
+                                ? `${usedHours} hrs`
+                                : allocatedHours
+                                  ? `${usedHours} hrs`
+                                  : '—'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <div className="text-sm text-white">
+                              {client.contractType === 'Unlimited' || percentage === null
+                                ? 'N/A'
+                                : `${percentage}%`}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            <span className={`text-2xl ${statusColor}`}>{statusIcon}</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  setContractHealthExportClient(client);
+                                  setContractHealthExportLoading(true);
+                                  setContractHealthExportRange('3');
+                                  setContractHealthExportYear('');
+                                  const res = await fetch(`${API_URL}/api/contract-usage?clientId=${client.clientId}`);
+                                  if (!res.ok) throw new Error('Failed to fetch contract usage history');
+                                  const data = await res.json();
+                                  setContractHealthExportData(data);
+                                } catch (err) {
+                                  console.error('Error preparing export data:', err);
+                                  alert('Failed to load contract usage data for export.');
+                                  setContractHealthExportClient(null);
+                                  setContractHealthExportData(null);
+                                } finally {
+                                  setContractHealthExportLoading(false);
+                                }
+                              }}
+                              className="text-xs px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white"
+                            >
+                              ⬇ Export
+                            </button>
+                          </td>
+                        </tr>
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderContractHealthDetail = () => {
+    const client = contractHealthDetailClient;
+    const data = contractHealthDetailData;
+
+    const monthsByYear = {};
+    if (data?.months) {
+      data.months.forEach((m) => {
+        const year = m.month.split('-')[0];
+        if (!monthsByYear[year]) monthsByYear[year] = [];
+        monthsByYear[year].push(m);
+      });
+      Object.keys(monthsByYear).forEach((year) => {
+        monthsByYear[year].sort((a, b) => (a.month < b.month ? 1 : -1));
+      });
+    }
+
+    const exportYear = (year) => {
+      if (!client || !monthsByYear[year]) return;
+      const header = ['Month', 'AllocatedHours', 'UsedHours', 'RemainingHours', 'PercentageUsed', 'TotalCost'];
+      const rows = monthsByYear[year].map((m) => [
+        m.month,
+        m.allocated ?? '',
+        m.used ?? '',
+        m.remaining ?? '',
+        m.percentage ?? '',
+        m.cost ?? '',
+      ]);
+      const csv = [header.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const safeName = client.clientName.replace(/[^a-z0-9]+/gi, '_').toLowerCase();
+      link.href = url;
+      link.setAttribute('download', `${safeName}_contract_usage_year_${year}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    };
+
+    return (
+      <div>
+        <button
+          onClick={() => {
+            setActiveView('contract-health');
+            setContractHealthDetailClient(null);
+            setContractHealthDetailData(null);
+          }}
+          className="mb-4 inline-flex items-center text-blue-400 hover:text-blue-300 text-sm"
+        >
+          ← Back to Contract Health
+        </button>
+
+        {contractHealthDetailLoading || !data ? (
+          <div className="bg-gray-800 rounded-lg p-8 border border-gray-700 text-center">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4"></div>
+            <p className="text-gray-400">Loading contract usage history...</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-white mb-1">{data.client}</h2>
+                <p className="text-gray-400">
+                  {data.contractType === 'Block Hours'
+                    ? `Block Hours — ${data.monthlyHours ?? 'N/A'} hrs / month`
+                    : data.contractType === 'Unlimited'
+                    ? 'Unlimited Support'
+                    : 'No contract data'}
+                </p>
+              </div>
+            </div>
+
+            {Object.keys(monthsByYear).length === 0 ? (
+              <div className="bg-gray-800 rounded-lg p-8 border border-gray-700 text-center">
+                <p className="text-gray-400">No historical contract usage recorded for this client yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {Object.keys(monthsByYear)
+                  .sort((a, b) => (a < b ? 1 : -1))
+                  .map((year) => (
+                    <div key={year} className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
+                      <details open>
+                        <summary className="cursor-pointer select-none px-4 py-3 bg-gray-900 flex items-center justify-between">
+                          <span className="text-lg font-semibold text-white">{year}</span>
+                          <span className="text-gray-400 text-sm">Click to expand/collapse</span>
+                        </summary>
+                        <div className="p-4 overflow-x-auto">
+                          {(() => {
+                            const yearMonths = monthsByYear[year];
+                            const pctValues =
+                              data.contractType === 'Unlimited'
+                                ? []
+                                : yearMonths
+                                    .map((m) => m.percentage)
+                                    .filter((v) => v !== null && v !== undefined);
+                            let avgPct = null;
+                            if (pctValues.length > 0) {
+                              avgPct =
+                                pctValues.reduce((sum, v) => sum + v, 0) / pctValues.length;
+                            }
+                            return avgPct !== null ? (
+                              <div className="mb-3 flex items-center justify-between">
+                                <div className="text-sm text-gray-300">
+                                  <span className="font-semibold">Average % Used ({year}): </span>
+                                  <span className="font-bold">{Math.round(avgPct)}%</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => exportYear(year)}
+                                    className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white"
+                                  >
+                                    ⬇ Export {year}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="mb-3 flex items-center justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => exportYear(year)}
+                                  className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white"
+                                >
+                                  ⬇ Export {year}
+                                </button>
+                              </div>
+                            );
+                          })()}
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-gray-700">
+                                <th className="text-left py-2 text-gray-400">Month</th>
+                                <th className="text-right py-2 text-gray-400">Allocated Hours</th>
+                                <th className="text-right py-2 text-gray-400">Used Hours</th>
+                                <th className="text-right py-2 text-gray-400">Remaining</th>
+                                <th className="text-right py-2 text-gray-400">% Used</th>
+                                <th className="text-right py-2 text-gray-400">Charges</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {monthsByYear[year].map((m) => {
+                                const [y, monthNum] = m.month.split('-');
+                                const date = new Date(parseInt(y, 10), parseInt(monthNum, 10) - 1);
+                                const monthLabel = date.toLocaleDateString('en-US', {
+                                  month: 'long',
+                                  year: 'numeric',
+                                });
+                                const pct = m.percentage ?? null;
+                                let pctClass = 'text-green-400';
+                                if (pct !== null) {
+                                  if (pct >= 91) pctClass = 'text-red-400';
+                                  else if (pct >= 71) pctClass = 'text-yellow-400';
+                                }
+                                return (
+                                  <tr key={m.month} className="border-b border-gray-800">
+                                    <td className="py-2 text-white">{monthLabel}</td>
+                                    <td className="py-2 text-right text-white">
+                                      {data.contractType === 'Unlimited' ? 'N/A' : m.allocated ?? '—'}
+                                    </td>
+                                    <td className="py-2 text-right text-white">{m.used ?? 0}</td>
+                                    <td className="py-2 text-right text-white">
+                                      {data.contractType === 'Unlimited' ? 'N/A' : m.remaining ?? '—'}
+                                    </td>
+                                    <td className={`py-2 text-right font-medium ${pctClass}`}>
+                                      {data.contractType === 'Unlimited' || pct === null ? 'N/A' : `${pct}%`}
+                                    </td>
+                                    <td className="py-2 text-right text-white">
+                                      {m.cost ? `$${m.cost.toFixed(2)}` : '$0.00'}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </details>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderContractHealthExportModal = () => {
+    const client = contractHealthExportClient;
+    const data = contractHealthExportData;
+
+    if (!client) return null;
+
+    const months = data?.months || [];
+    const sortedMonths = [...months].sort((a, b) => (a.month < b.month ? 1 : -1));
+    const years = Array.from(
+      new Set(months.map((m) => m.month.split('-')[0]))
+    ).sort((a, b) => (a < b ? 1 : -1));
+
+    const doExport = () => {
+      if (!months.length) {
+        alert('No contract usage history available for this client yet.');
+        return;
+      }
+
+      let slice = [];
+
+      if (contractHealthExportRange === '3') {
+        slice = sortedMonths.slice(0, 3);
+      } else if (contractHealthExportRange === '6') {
+        slice = sortedMonths.slice(0, 6);
+      } else if (contractHealthExportRange === 'year') {
+        if (!contractHealthExportYear) {
+          alert('Please select a year to export.');
+          return;
+        }
+        slice = months.filter((m) => m.month.startsWith(contractHealthExportYear + '-'));
+        if (!slice.length) {
+          alert(`No data found for year ${contractHealthExportYear}.`);
+          return;
+        }
+      }
+
+      const header = ['Month', 'AllocatedHours', 'UsedHours', 'RemainingHours', 'PercentageUsed', 'TotalCost'];
+      const rows = slice.map((m) => [
+        m.month,
+        m.allocated ?? '',
+        m.used ?? '',
+        m.remaining ?? '',
+        m.percentage ?? '',
+        m.cost ?? '',
+      ]);
+      const csv = [header.join(','), ...rows.map((r) => r.join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const safeName = client.clientName.replace(/[^a-z0-9]+/gi, '_').toLowerCase();
+      const label =
+        contractHealthExportRange === '3'
+          ? 'last_90_days'
+          : contractHealthExportRange === '6'
+          ? 'last_6_months'
+          : `year_${contractHealthExportYear}`;
+      link.href = url;
+      link.setAttribute('download', `${safeName}_contract_usage_${label}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    };
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setContractHealthExportClient(null)}>
+        <div
+          className="bg-gray-800 rounded-lg p-6 max-w-md w-full border border-gray-700"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-white">Export Contract Usage</h3>
+            <button
+              onClick={() => setContractHealthExportClient(null)}
+              className="text-gray-400 hover:text-white text-xl"
+            >
+              ✕
+            </button>
+          </div>
+          <p className="text-sm text-gray-300 mb-4">
+            {client.clientName}
+          </p>
+          {contractHealthExportLoading ? (
+            <div className="text-gray-400 text-sm">Loading data...</div>
+          ) : !months.length ? (
+            <div className="text-gray-400 text-sm">No contract usage history available for this client yet.</div>
+          ) : (
+            <>
+              <div className="space-y-3 mb-4">
+                <div className="text-sm text-gray-300 font-medium">Export Range</div>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-sm text-gray-200">
+                    <input
+                      type="radio"
+                      name="contract-export-range"
+                      value="3"
+                      checked={contractHealthExportRange === '3'}
+                      onChange={(e) => setContractHealthExportRange(e.target.value)}
+                    />
+                    Last 90 days (3 months)
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-200">
+                    <input
+                      type="radio"
+                      name="contract-export-range"
+                      value="6"
+                      checked={contractHealthExportRange === '6'}
+                      onChange={(e) => setContractHealthExportRange(e.target.value)}
+                    />
+                    Last 6 months
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-200">
+                    <input
+                      type="radio"
+                      name="contract-export-range"
+                      value="year"
+                      checked={contractHealthExportRange === 'year'}
+                      onChange={(e) => setContractHealthExportRange(e.target.value)}
+                    />
+                    Specific year
+                  </label>
+                </div>
+                {contractHealthExportRange === 'year' && (
+                  <div className="mt-2">
+                    <label className="block text-xs text-gray-400 mb-1">Select Year</label>
+                    <select
+                      value={contractHealthExportYear}
+                      onChange={(e) => setContractHealthExportYear(e.target.value)}
+                      className="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:outline-none focus:border-blue-500 text-sm"
+                    >
+                      <option value="">Choose year…</option>
+                      {years.map((y) => (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setContractHealthExportClient(null)}
+                  className="px-3 py-2 rounded bg-gray-700 hover:bg-gray-600 text-sm text-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={doExport}
+                  className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-sm font-medium text-white"
+                >
+                  Export CSV
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderSurveys = () => (
     <div>
       <div className="mb-6">
@@ -1727,6 +2353,20 @@ function App() {
             </button>
           )}
           <button
+            onClick={() => {
+              setActiveView('contract-health');
+              setContractHealthDetailClient(null);
+              setContractHealthDetailData(null);
+            }}
+            className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
+              activeView === 'contract-health' || activeView === 'contract-health-detail'
+                ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Contract Health
+          </button>
+          <button
             onClick={() => setActiveView('surveys')}
             className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
               activeView === 'surveys' 
@@ -1746,6 +2386,8 @@ function App() {
         {activeView === 'pending' && renderPendingSurveys()}
         {activeView === 'archives' && renderArchives()}
         {activeView === 'audit-logs' && renderAuditLog()}
+        {activeView === 'contract-health' && renderContractHealth()}
+        {activeView === 'contract-health-detail' && renderContractHealthDetail()}
         {activeView === 'surveys' && renderSurveys()}
       </main>
 
@@ -1922,7 +2564,7 @@ function App() {
                         key={days}
                         onClick={async () => {
                           try {
-                            const response = await fetch(`https://northwind-survey-backend.onrender.com/api/clients/${selectedClient.id || selectedClient.autotask_id}/schedule-survey`, {
+                            const response = await fetch(`${API_URL}/api/clients/${selectedClient.id || selectedClient.autotask_id}/schedule-survey`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ days, userEmail, userName })
@@ -1960,7 +2602,7 @@ function App() {
                     <button
                       onClick={async () => {
                         try {
-                          const response = await fetch(`https://northwind-survey-backend.onrender.com/api/clients/${selectedClient.id || selectedClient.autotask_id}/schedule-survey`, {
+                          const response = await fetch(`${API_URL}/api/clients/${selectedClient.id || selectedClient.autotask_id}/schedule-survey`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ days: null, userEmail, userName })
@@ -2025,7 +2667,7 @@ function App() {
                     
                     if (confirm(`Send ${selectedSurveyType} survey to ${selectedClient.email}?`)) {
                       try {
-                        const response = await fetch(`https://northwind-survey-backend.onrender.com/api/surveys/send/${selectedClient.id || selectedClient.autotask_id}`, {
+                        const response = await fetch(`${API_URL}/api/surveys/send/${selectedClient.id || selectedClient.autotask_id}`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ surveyType: selectedSurveyType })
@@ -2070,6 +2712,9 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Contract Health Export Modal */}
+      {renderContractHealthExportModal()}
 
       {/* Edit Template Modal */}
       {editingTemplate && (
