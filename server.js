@@ -22,8 +22,8 @@ const ADMIN_EMAILS = [
 // Admin check middleware
 function isAdmin(req, res, next) {
   // Get user email from headers, body, or query (can be set by frontend after Okta auth)
-  // Format: X-User-Email header, userEmail in body, or userEmail query param
-  const userEmail = req.headers['x-user-email'] || req.body.userEmail || req.query.userEmail;
+  // Format: X-User-Email header, userEmail in body (POST), or userEmail query param (GET)
+  const userEmail = req.headers['x-user-email'] || req.body?.userEmail || req.query?.userEmail;
   
   if (!userEmail) {
     return res.status(401).json({ error: 'User email required' });
@@ -35,7 +35,7 @@ function isAdmin(req, res, next) {
   
   // Attach user info to request for audit logging
   req.userEmail = userEmail;
-  req.userName = req.headers['x-user-name'] || req.body.userName || req.query.userName || userEmail.split('@')[0];
+  req.userName = req.headers['x-user-name'] || req.body?.userName || req.query?.userName || userEmail.split('@')[0];
   
   next();
 }

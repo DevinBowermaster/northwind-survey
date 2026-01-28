@@ -180,12 +180,7 @@ function App() {
 
   const fetchAuditLogs = async () => {
     try {
-      const response = await fetch(`https://northwind-survey-backend.onrender.com/api/audit-logs?userEmail=${encodeURIComponent(userEmail || '')}&userName=${encodeURIComponent(userName || '')}`, {
-        headers: {
-          'X-User-Email': userEmail || '',
-          'X-User-Name': userName || ''
-        }
-      });
+      const response = await fetch(`https://northwind-survey-backend.onrender.com/api/audit-logs?userEmail=${encodeURIComponent(userEmail || '')}`);
       
       if (response.status === 403) {
         alert('❌ Admin access required');
