@@ -45,6 +45,14 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  // Skip caching authentication requests - bypass service worker for OAuth flows
+  if (url.pathname.includes('/login/callback') || 
+      url.hostname.includes('okta.com') || 
+      url.pathname.includes('/oauth2/')) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
   // Skip non-GET requests
   if (request.method !== 'GET') {
     return;
