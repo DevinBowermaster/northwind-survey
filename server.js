@@ -88,7 +88,7 @@ app.get('/api/clients', (req, res) => {
     const clients = db.prepare(`
       SELECT 
         c.*,
-        (SELECT COUNT(*) FROM contacts WHERE company_autotask_id = c.autotask_id) as contact_count,
+        (SELECT COUNT(*) FROM contacts WHERE company_id = c.autotask_id) as contact_count,
         CASE 
           WHEN EXISTS (
             SELECT 1 FROM surveys s 
@@ -153,7 +153,7 @@ app.get('/api/clients/:id/contacts', (req, res) => {
     
     const contacts = db.prepare(`
       SELECT * FROM contacts 
-      WHERE company_autotask_id = ?
+      WHERE company_id = ?
       ORDER BY is_primary DESC, last_name, first_name
     `).all(client.autotask_id);
     
@@ -189,7 +189,7 @@ app.post('/api/clients/:id/set-primary-contact', (req, res) => {
       return res.status(404).json({ error: 'Contact not found' });
     }
     
-    if (contact.company_autotask_id !== client.autotask_id) {
+    if (contact.company_id !== client.autotask_id) {
       return res.status(400).json({ error: 'Contact does not belong to this company' });
     }
     
