@@ -74,25 +74,37 @@ async function getClientContract(companyId) {
       try {
         blocks = await getContractBlocks(contract.id);
         if (blocks && blocks.length > 0) {
-          // Find any active block and use its "hours" field
-          const activeBlock = blocks.find(block => 
-            block.isActive === true || 
-            block.isActive === 1 || 
-            block.status === 'Active' ||
-            block.status === 1
-          );
+          // Find the block that covers today's date (current active block)
+          const today = new Date();
+          today.setHours(0, 0, 0, 0); // Reset time to start of day
           
-          if (activeBlock && activeBlock.hours) {
-            monthlyAllocation = activeBlock.hours;
-            console.log(`[getClientContract] Monthly allocation from active block: ${monthlyAllocation} hours (from block ID ${activeBlock.id})`);
+          const currentBlock = blocks.find(block => {
+            if (!block.startDate || !block.endDate) return false;
+            const startDate = new Date(block.startDate);
+            const endDate = new Date(block.endDate);
+            startDate.setHours(0, 0, 0, 0);
+            endDate.setHours(23, 59, 59, 999); // End of day
+            return today >= startDate && today <= endDate;
+          });
+          
+          if (currentBlock && currentBlock.hours) {
+            monthlyAllocation = currentBlock.hours;
+            console.log(`[getClientContract] Monthly allocation from current block (covers today): ${monthlyAllocation} hours (from block ID ${currentBlock.id}, ${currentBlock.startDate} to ${currentBlock.endDate})`);
           } else {
-            // If no active block found, use the most recent block
+            // If no current block, use the most recent block (by endDate, already sorted)
             const mostRecentBlock = blocks[0];
-            monthlyAllocation = mostRecentBlock.hours || null;
-            console.log(`[getClientContract] No active block found, using most recent block: ${monthlyAllocation} hours (from block ID ${mostRecentBlock.id})`);
+            if (mostRecentBlock && mostRecentBlock.hours) {
+              monthlyAllocation = mostRecentBlock.hours;
+              console.log(`[getClientContract] No current block found, using most recent block: ${monthlyAllocation} hours (from block ID ${mostRecentBlock.id}, ended ${mostRecentBlock.endDate})`);
+            } else {
+              console.warn(`[getClientContract] Blocks found but none have hours value. Block data:`, JSON.stringify(blocks[0], null, 2));
+              // Only fall back to estimatedHours if blocks have no hours value
+              monthlyAllocation = contract.estimatedHours || null;
+              console.log(`[getClientContract] Using estimatedHours as fallback: ${monthlyAllocation}`);
+            }
           }
         } else {
-          // Fallback to estimatedHours if no blocks found
+          // Only fallback to estimatedHours if NO blocks found at all
           monthlyAllocation = contract.estimatedHours || null;
           console.log(`[getClientContract] No blocks found, using estimatedHours: ${monthlyAllocation}`);
         }
@@ -163,8 +175,12 @@ async function getContractBlocks(contractId) {
       return null;
     }
     
-    // Sort by ID descending to get most recent first
-    blocks.sort((a, b) => (b.id || 0) - (a.id || 0));
+    // Sort by endDate descending to get most recent first (by date, not ID)
+    blocks.sort((a, b) => {
+      const dateA = a.endDate ? new Date(a.endDate) : new Date(0);
+      const dateB = b.endDate ? new Date(b.endDate) : new Date(0);
+      return dateB - dateA; // Most recent end date first
+    });
     
     console.log(`[getContractBlocks] Found ${blocks.length} blocks for contract ID: ${contractId}`);
     
@@ -172,7 +188,7 @@ async function getContractBlocks(contractId) {
     const result = blocks.map(block => ({
       id: block.id,
       contractID: block.contractID,
-      hours: block.hours || block.hoursPurchased || null,
+      hours: block.hoursPurchased || block.hours || null, // Prefer hoursPurchased (matches UI)
       hoursApproved: block.hoursApproved || null,
       startDate: block.startDate || null,
       endDate: block.endDate || null,
@@ -185,7 +201,7 @@ async function getContractBlocks(contractId) {
     // Log the most recent block details
     if (result.length > 0) {
       const mostRecent = result[0];
-      console.log(`[getContractBlocks] Most recent block: ID ${mostRecent.id}, Hours: ${mostRecent.hours}, Status: ${mostRecent.status}`);
+      console.log(`[getContractBlocks] Most recent block (by endDate): ID ${mostRecent.id}, Hours: ${mostRecent.hours}, Start: ${mostRecent.startDate}, End: ${mostRecent.endDate}`);
     }
     
     return result;
