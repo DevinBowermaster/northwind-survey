@@ -32,9 +32,6 @@ function App() {
     ? 'http://localhost:3000' 
     : 'https://northwind-survey-backend.onrender.com';
 
-  console.log('DEV mode:', import.meta.env.DEV);
-  console.log('API_URL:', API_URL);
-
   const { authState } = useOktaAuth();
   const [activeView, setActiveView] = useState('dashboard');
   const [clients, setClients] = useState([]);
@@ -811,7 +808,7 @@ function App() {
             )}
             <button 
               onClick={fetchClients}
-              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors"
+              className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-lg font-medium transition-colors bg-blue-600 hover:bg-blue-700 touch-manipulation"
             >
               🔄 Refresh
             </button>
@@ -973,26 +970,26 @@ function App() {
 
     return (
       <div>
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-white">Survey Responses</h2>
-            <p className="text-gray-400">
+            <h2 className="text-xl sm:text-2xl font-bold text-white">Survey Responses</h2>
+            <p className="text-gray-400 text-sm sm:text-base">
               Showing {startIdx + 1}-{Math.min(startIdx + RESPONSES_PER_PAGE, filteredResponses.length)} of {filteredResponses.length}
             </p>
           </div>
           <button 
             onClick={fetchAllResponses}
-            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors"
+            className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-lg font-medium transition-colors bg-blue-600 hover:bg-blue-700 touch-manipulation"
           >
             🔄 Refresh
           </button>
         </div>
 
         {/* Filters */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex flex-wrap gap-2 mb-6">
           <button
             onClick={() => { setResponsesFilter('all'); setResponsesPage(1); }}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`min-h-[44px] px-3 py-2 sm:px-4 rounded-lg font-medium transition-colors text-sm sm:text-base ${
               responsesFilter === 'all'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
@@ -1002,7 +999,7 @@ function App() {
           </button>
           <button
             onClick={() => { setResponsesFilter('good'); setResponsesPage(1); }}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`min-h-[44px] px-3 py-2 sm:px-4 rounded-lg font-medium transition-colors text-sm sm:text-base ${
               responsesFilter === 'good'
                 ? 'bg-green-600 text-white'
                 : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
@@ -1012,7 +1009,7 @@ function App() {
           </button>
           <button
             onClick={() => { setResponsesFilter('needs-attention'); setResponsesPage(1); }}
-            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            className={`min-h-[44px] px-3 py-2 sm:px-4 rounded-lg font-medium transition-colors text-sm sm:text-base ${
               responsesFilter === 'needs-attention'
                 ? 'bg-red-600 text-white'
                 : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
@@ -1051,24 +1048,22 @@ function App() {
                   >
                     {/* Accordion Header - Always Visible */}
                     <div 
-                      className="p-6 cursor-pointer"
+                      className="p-4 sm:p-6 cursor-pointer touch-manipulation"
                       onClick={() => toggleResponse(response.id)}
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <span className="text-gray-400">
-                              {isExpanded ? '▼' : '▶'}
-                            </span>
-                            <h3 className="text-xl font-bold text-white">{response.client_name}</h3>
-                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-blue-600">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+                            <span className="text-gray-400 shrink-0">{isExpanded ? '▼' : '▶'}</span>
+                            <h3 className="text-base sm:text-xl font-bold text-white break-words">{response.client_name}</h3>
+                            <span className="px-2 sm:px-3 py-0.5 sm:py-1 rounded-full text-xs font-medium bg-blue-600 shrink-0">
                               {response.survey_type}
                             </span>
-                            <span className={`text-2xl ${response.avg_score >= 7 ? 'text-green-500' : 'text-red-500'}`}>
+                            <span className={`text-xl sm:text-2xl shrink-0 ${response.avg_score >= 7 ? 'text-green-500' : 'text-red-500'}`}>
                               {response.avg_score >= 7 ? '✓' : '⚠'}
                             </span>
                           </div>
-                          <p className="text-sm text-gray-400 ml-8">
+                          <p className="text-xs sm:text-sm text-gray-400 ml-6 sm:ml-8">
                             Completed: {new Date(response.completed_date).toLocaleDateString('en-US', {
                               year: 'numeric',
                               month: 'long',
@@ -1078,8 +1073,8 @@ function App() {
                             })}
                           </p>
                         </div>
-                        <div className="text-right">
-                          <div className="text-3xl font-bold text-blue-400">
+                        <div className="text-left sm:text-right shrink-0">
+                          <div className="text-2xl sm:text-3xl font-bold text-blue-400">
                             {Math.round(response.avg_score * 10) / 10}/10
                           </div>
                           <div className="text-xs text-gray-400">Average Score</div>
@@ -1089,9 +1084,9 @@ function App() {
 
                     {/* Accordion Content - Expandable */}
                     {isExpanded && (
-                      <div className="px-6 pb-6">
+                      <div className="px-4 sm:px-6 pb-4 sm:pb-6">
                         {/* Rating Scores */}
-                        <div className="grid grid-cols-5 gap-3 mb-4 pb-4 border-b border-gray-700">
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4 pb-4 border-b border-gray-700">
                           <div className="text-center">
                             <div className="text-2xl font-bold text-white">{response.overall_satisfaction}</div>
                             <div className="text-xs text-gray-400">Overall</div>
@@ -1193,21 +1188,21 @@ function App() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-2 mt-6">
+              <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
                 <button
                   onClick={() => setResponsesPage(p => Math.max(1, p - 1))}
                   disabled={responsesPage === 1}
-                  className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="min-h-[44px] px-4 py-2.5 bg-gray-800 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                 >
                   ← Previous
                 </button>
-                <span className="text-gray-400">
+                <span className="text-gray-400 text-sm sm:text-base order-last w-full text-center sm:order-none sm:w-auto">
                   Page {responsesPage} of {totalPages}
                 </span>
                 <button
                   onClick={() => setResponsesPage(p => Math.min(totalPages, p + 1))}
                   disabled={responsesPage === totalPages}
-                  className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="min-h-[44px] px-4 py-2.5 bg-gray-800 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                 >
                   Next →
                 </button>
@@ -1244,16 +1239,16 @@ function App() {
 
     return (
       <div>
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-white mb-2">Pending Surveys</h2>
-            <p className="text-gray-400">
-              Surveys that have been sent but not yet completed ({pendingSurveys.length} total)
+            <h2 className="text-xl sm:text-2xl font-bold text-white mb-1 sm:mb-2">Pending Surveys</h2>
+            <p className="text-gray-400 text-sm sm:text-base">
+              Surveys sent but not yet completed ({pendingSurveys.length} total)
             </p>
           </div>
           <button 
             onClick={fetchPendingSurveys}
-            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors"
+            className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-lg font-medium transition-colors bg-blue-600 hover:bg-blue-700 touch-manipulation"
           >
             🔄 Refresh
           </button>
@@ -1268,76 +1263,112 @@ function App() {
             </p>
           </div>
         ) : (
-          <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-700">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Client Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Email</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Sent Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Days Pending</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Survey Type</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-700">
-                  {pendingSurveys.map(survey => (
-                    <tr key={survey.id} className="hover:bg-gray-700 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-white">{survey.client_name}</div>
-                        {survey.contact_person && (
-                          <div className="text-sm text-gray-400">{survey.contact_person}</div>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-blue-400">{survey.email || 'No email'}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-300">
-                          {new Date(survey.sent_date).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric'
-                          })}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          {new Date(survey.sent_date).toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          survey.days_pending >= 14 
-                            ? 'bg-red-600 text-white' 
-                            : survey.days_pending >= 7 
-                            ? 'bg-yellow-600 text-white' 
-                            : 'bg-blue-600 text-white'
-                        }`}>
-                          {survey.days_pending} {survey.days_pending === 1 ? 'day' : 'days'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 py-1 rounded text-xs font-medium bg-purple-600">
-                          {survey.survey_type}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <button
-                          onClick={() => resendSurvey(survey.id)}
-                          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors text-white"
-                        >
-                          📧 Resend
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <>
+            {/* Mobile: cards */}
+            <div className="md:hidden space-y-4">
+              {pendingSurveys.map(survey => (
+                <div key={survey.id} className="bg-gray-800 rounded-lg border border-gray-700 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-white truncate">{survey.client_name}</div>
+                      {survey.contact_person && (
+                        <div className="text-sm text-gray-400 truncate">{survey.contact_person}</div>
+                      )}
+                      <div className="text-sm text-blue-400 truncate mt-1">{survey.email || 'No email'}</div>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium shrink-0 ${
+                      survey.days_pending >= 14 ? 'bg-red-600 text-white' : survey.days_pending >= 7 ? 'bg-yellow-600 text-white' : 'bg-blue-600 text-white'
+                    }`}>
+                      {survey.days_pending} {survey.days_pending === 1 ? 'day' : 'days'}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-400">
+                    <span>
+                      Sent: {new Date(survey.sent_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-600 text-white">{survey.survey_type}</span>
+                  </div>
+                  <button
+                    onClick={() => resendSurvey(survey.id)}
+                    className="mt-3 w-full min-h-[44px] bg-blue-600 hover:bg-blue-700 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-white touch-manipulation"
+                  >
+                    📧 Resend
+                  </button>
+                </div>
+              ))}
             </div>
-          </div>
+            {/* Desktop: table */}
+            <div className="hidden md:block bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-700">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Client Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Email</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Sent Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Days Pending</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Survey Type</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-700">
+                    {pendingSurveys.map(survey => (
+                      <tr key={survey.id} className="hover:bg-gray-700 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-white">{survey.client_name}</div>
+                          {survey.contact_person && (
+                            <div className="text-sm text-gray-400">{survey.contact_person}</div>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-blue-400">{survey.email || 'No email'}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-300">
+                            {new Date(survey.sent_date).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {new Date(survey.sent_date).toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            survey.days_pending >= 14 
+                              ? 'bg-red-600 text-white' 
+                              : survey.days_pending >= 7 
+                              ? 'bg-yellow-600 text-white' 
+                              : 'bg-blue-600 text-white'
+                          }`}>
+                            {survey.days_pending} {survey.days_pending === 1 ? 'day' : 'days'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="px-2 py-1 rounded text-xs font-medium bg-purple-600">
+                            {survey.survey_type}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <button
+                            onClick={() => resendSurvey(survey.id)}
+                            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors text-white"
+                          >
+                            📧 Resend
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
         )}
       </div>
     );
@@ -1366,16 +1397,16 @@ function App() {
 
     return (
       <div>
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-white mb-2">Archived Surveys</h2>
-            <p className="text-gray-400">
+            <h2 className="text-xl sm:text-2xl font-bold text-white mb-1 sm:mb-2">Archived Surveys</h2>
+            <p className="text-gray-400 text-sm sm:text-base">
               Archived survey responses organized by client, year, and month
             </p>
           </div>
           <button 
             onClick={fetchArchivedSurveys}
-            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors"
+            className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-lg font-medium transition-colors bg-blue-600 hover:bg-blue-700 touch-manipulation"
           >
             🔄 Refresh
           </button>
@@ -1400,13 +1431,13 @@ function App() {
                 <div key={clientName} className="bg-gray-800 rounded-lg border border-gray-700">
                   {/* Client Header */}
                   <div 
-                    className="p-4 cursor-pointer hover:bg-gray-700 transition-colors"
+                    className="p-4 min-h-[48px] cursor-pointer hover:bg-gray-700 transition-colors touch-manipulation flex items-center"
                     onClick={() => toggleArchiveSection(clientKey)}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="text-gray-400">{isClientExpanded ? '▼' : '▶'}</span>
-                        <h3 className="text-lg font-bold text-white">{clientName}</h3>
+                    <div className="flex items-center justify-between w-full gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-gray-400 shrink-0">{isClientExpanded ? '▼' : '▶'}</span>
+                        <h3 className="text-base sm:text-lg font-bold text-white truncate">{clientName}</h3>
                         <span className="px-2 py-1 rounded text-xs font-medium bg-gray-600">
                           {yearMonths.length} {yearMonths.length === 1 ? 'period' : 'periods'}
                         </span>
@@ -1427,13 +1458,13 @@ function App() {
                           <div key={yearMonth} className="bg-gray-700 rounded-lg border border-gray-600">
                             {/* Year/Month Header */}
                             <div 
-                              className="p-3 cursor-pointer hover:bg-gray-600 transition-colors"
+                              className="p-3 min-h-[44px] cursor-pointer hover:bg-gray-600 transition-colors touch-manipulation flex items-center"
                               onClick={() => toggleArchiveSection(yearMonthKey)}
                             >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <span className="text-gray-400 text-sm">{isYearMonthExpanded ? '▼' : '▶'}</span>
-                                  <span className="text-md font-semibold text-white">
+                              <div className="flex items-center justify-between w-full gap-2">
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <span className="text-gray-400 text-sm shrink-0">{isYearMonthExpanded ? '▼' : '▶'}</span>
+                                  <span className="text-sm sm:text-base font-semibold text-white">
                                     {getMonthName(yearMonthData.month)} {yearMonthData.year}
                                   </span>
                                   <span className="px-2 py-1 rounded text-xs font-medium bg-purple-600">
@@ -1553,126 +1584,170 @@ function App() {
   };
 
   const renderAuditLog = () => {
+    const formatLogValue = (log, key) => {
+      let val = log[key];
+      if (!val) return '—';
+      try {
+        const parsed = JSON.parse(val);
+        return typeof parsed === 'object' ? JSON.stringify(parsed, null, 2) : parsed;
+      } catch (e) {
+        return val;
+      }
+    };
+
     return (
       <div>
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
-            <h2 className="text-2xl font-bold text-white mb-2">Audit Log</h2>
-            <p className="text-gray-400">
-              Complete history of admin actions and changes ({auditLogs.length} entries)
+            <h2 className="text-xl sm:text-2xl font-bold text-white mb-1 sm:mb-2">Audit Log</h2>
+            <p className="text-gray-400 text-sm sm:text-base">
+              Admin actions and changes ({auditLogs.length} entries)
             </p>
           </div>
           <button 
             onClick={fetchAuditLogs}
-            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-medium transition-colors"
+            className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-lg font-medium transition-colors bg-blue-600 hover:bg-blue-700 touch-manipulation"
           >
             🔄 Refresh
           </button>
         </div>
 
         {auditLogs.length === 0 ? (
-          <div className="bg-gray-800 rounded-lg p-12 border border-gray-700 text-center">
+          <div className="bg-gray-800 rounded-lg p-8 sm:p-12 border border-gray-700 text-center">
             <div className="text-6xl mb-4">📋</div>
             <h3 className="text-xl font-bold text-white mb-2">No Audit Logs</h3>
-            <p className="text-gray-400">
+            <p className="text-gray-400 text-sm sm:text-base">
               Audit logs will appear here once admin actions are performed.
             </p>
           </div>
         ) : (
-          <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-700">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Timestamp</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">User</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Action</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Entity</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Old Value</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">New Value</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-700">
-                  {auditLogs.map(log => {
-                    let oldValueDisplay = null;
-                    let newValueDisplay = null;
-                    
-                    try {
-                      if (log.old_value) {
-                        const parsed = JSON.parse(log.old_value);
-                        oldValueDisplay = typeof parsed === 'object' ? JSON.stringify(parsed, null, 2) : parsed;
-                      }
-                      if (log.new_value) {
-                        const parsed = JSON.parse(log.new_value);
-                        newValueDisplay = typeof parsed === 'object' ? JSON.stringify(parsed, null, 2) : parsed;
-                      }
-                    } catch (e) {
-                      oldValueDisplay = log.old_value;
-                      newValueDisplay = log.new_value;
-                    }
-                    
-                    return (
-                      <tr key={log.id} className="hover:bg-gray-700 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-300">
-                            {new Date(log.timestamp).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric'
-                            })}
+          <>
+            {/* Mobile: cards */}
+            <div className="md:hidden space-y-4">
+              {auditLogs.map(log => {
+                const oldValueDisplay = formatLogValue(log, 'old_value');
+                const newValueDisplay = formatLogValue(log, 'new_value');
+                return (
+                  <div key={log.id} className="bg-gray-800 rounded-lg border border-gray-700 p-4">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <span className="px-2 py-1 rounded text-xs font-medium bg-blue-600">{log.action}</span>
+                      <span className="text-xs text-gray-500">
+                        {new Date(log.timestamp).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                    </div>
+                    <div className="text-sm font-medium text-white mb-1">{log.user_name || log.user_email}</div>
+                    <div className="text-xs text-gray-400 mb-2">{log.user_email}</div>
+                    {log.entity_name && (
+                      <div className="text-sm text-gray-300 mb-2">
+                        {log.entity_name} <span className="text-gray-500">({log.entity_type} #{log.entity_id})</span>
+                      </div>
+                    )}
+                    {(oldValueDisplay !== '—' || newValueDisplay !== '—') && (
+                      <div className="space-y-2 text-xs">
+                        {oldValueDisplay !== '—' && (
+                          <div>
+                            <span className="text-gray-500">Old: </span>
+                            <pre className="text-gray-300 bg-gray-900 p-2 rounded mt-1 overflow-x-auto max-h-24">{oldValueDisplay}</pre>
                           </div>
-                          <div className="text-xs text-gray-500">
-                            {new Date(log.timestamp).toLocaleTimeString('en-US', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              second: '2-digit'
-                            })}
+                        )}
+                        {newValueDisplay !== '—' && (
+                          <div>
+                            <span className="text-gray-500">New: </span>
+                            <pre className="text-gray-300 bg-gray-900 p-2 rounded mt-1 overflow-x-auto max-h-24">{newValueDisplay}</pre>
                           </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-white">{log.user_name || log.user_email}</div>
-                          <div className="text-xs text-gray-400">{log.user_email}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="px-2 py-1 rounded text-xs font-medium bg-blue-600">
-                            {log.action}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          {log.entity_name ? (
-                            <div>
-                              <div className="text-sm text-white">{log.entity_name}</div>
-                              <div className="text-xs text-gray-400">{log.entity_type} #{log.entity_id}</div>
-                            </div>
-                          ) : (
-                            <span className="text-sm text-gray-400">—</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          {oldValueDisplay ? (
-                            <pre className="text-xs text-gray-300 bg-gray-900 p-2 rounded max-w-xs overflow-auto">
-                              {oldValueDisplay}
-                            </pre>
-                          ) : (
-                            <span className="text-sm text-gray-500">—</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4">
-                          {newValueDisplay ? (
-                            <pre className="text-xs text-gray-300 bg-gray-900 p-2 rounded max-w-xs overflow-auto">
-                              {newValueDisplay}
-                            </pre>
-                          ) : (
-                            <span className="text-sm text-gray-500">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          </div>
+            {/* Desktop: table */}
+            <div className="hidden md:block bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-700">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Timestamp</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">User</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Action</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Entity</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Old Value</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">New Value</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-700">
+                    {auditLogs.map(log => {
+                      let oldValueDisplay = null;
+                      let newValueDisplay = null;
+                      try {
+                        if (log.old_value) {
+                          const parsed = JSON.parse(log.old_value);
+                          oldValueDisplay = typeof parsed === 'object' ? JSON.stringify(parsed, null, 2) : parsed;
+                        }
+                        if (log.new_value) {
+                          const parsed = JSON.parse(log.new_value);
+                          newValueDisplay = typeof parsed === 'object' ? JSON.stringify(parsed, null, 2) : parsed;
+                        }
+                      } catch (e) {
+                        oldValueDisplay = log.old_value;
+                        newValueDisplay = log.new_value;
+                      }
+                      return (
+                        <tr key={log.id} className="hover:bg-gray-700 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-300">
+                              {new Date(log.timestamp).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {new Date(log.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-white">{log.user_name || log.user_email}</div>
+                            <div className="text-xs text-gray-400">{log.user_email}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="px-2 py-1 rounded text-xs font-medium bg-blue-600">{log.action}</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            {log.entity_name ? (
+                              <div>
+                                <div className="text-sm text-white">{log.entity_name}</div>
+                                <div className="text-xs text-gray-400">{log.entity_type} #{log.entity_id}</div>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            {oldValueDisplay ? (
+                              <pre className="text-xs text-gray-300 bg-gray-900 p-2 rounded max-w-xs overflow-auto">{oldValueDisplay}</pre>
+                            ) : (
+                              <span className="text-sm text-gray-500">—</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            {newValueDisplay ? (
+                              <pre className="text-xs text-gray-300 bg-gray-900 p-2 rounded max-w-xs overflow-auto">{newValueDisplay}</pre>
+                            ) : (
+                              <span className="text-sm text-gray-500">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
         )}
       </div>
     );
@@ -1708,11 +1783,11 @@ function App() {
             <p className="text-gray-400">Monitor contract usage across all managed clients</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2">
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <select
                 value={contractHealthSortBy}
                 onChange={(e) => setContractHealthSortBy(e.target.value)}
-                className="bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none"
+                className="min-h-[44px] bg-gray-700 text-white px-4 py-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none touch-manipulation"
               >
                 <option value="name">Sort by Name</option>
                 <option value="usage">Sort by Usage %</option>
@@ -1720,7 +1795,7 @@ function App() {
               <button
                 onClick={fetchContractHealth}
                 disabled={contractHealthLoading}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-50 px-4 py-2 rounded-lg font-medium transition-colors"
+                className="min-h-[44px] px-4 py-2.5 rounded-lg font-medium transition-colors bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:opacity-50 touch-manipulation"
               >
                 {contractHealthLoading ? '⏳ Loading...' : '🔄 Refresh'}
               </button>
@@ -1729,7 +1804,7 @@ function App() {
               <button
                 onClick={syncContractHealth}
                 disabled={syncing}
-                className="w-full sm:w-auto bg-teal-600 hover:bg-teal-700 px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full sm:w-auto min-h-[44px] bg-teal-600 hover:bg-teal-700 px-4 py-2.5 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
               >
                 {syncing ? '⏳ Syncing...' : '📊 Sync Contract Health'}
               </button>
@@ -1751,165 +1826,235 @@ function App() {
             </p>
           </div>
         ) : (
-          <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-700">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Client Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Contract Type</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Block Hours</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Hours Used (This Month)</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">% Used</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-700">
+          <>
+            {/* Mobile: cards */}
+            <div className="md:hidden space-y-4">
+              {sortedData.map(client => {
+                const percentage = client.currentMonth?.percentage;
+                const usedHours = client.currentMonth?.used || 0;
+                const allocatedHours = client.monthlyHours || null;
+                let statusColor = 'text-gray-400';
+                let statusIcon = '—';
+                if (client.contractType === 'Block Hours' && percentage !== null) {
+                  if (percentage >= 91) {
+                    statusColor = 'text-red-400';
+                    statusIcon = '🔴';
+                  } else if (percentage >= 71) {
+                    statusColor = 'text-yellow-400';
+                    statusIcon = '🟡';
+                  } else {
+                    statusColor = 'text-green-400';
+                    statusIcon = '🟢';
+                  }
+                } else if (client.contractType === 'Unlimited') {
+                  statusColor = 'text-purple-400';
+                  statusIcon = '♾️';
+                }
+                const openDetail = () => {
+                  setContractHealthDetailClient(client);
+                  setContractHealthDetailLoading(true);
+                  setActiveView('contract-health-detail');
+                  fetch(`${API_URL}/api/contract-usage?clientId=${client.clientId}`)
+                    .then((res) => {
+                      if (!res.ok) throw new Error('Failed to fetch contract usage history');
+                      return res.json();
+                    })
+                    .then((data) => setContractHealthDetailData(data))
+                    .catch((e) => { console.error(e); setContractHealthDetailData(null); })
+                    .finally(() => setContractHealthDetailLoading(false));
+                };
+                const openExport = async () => {
+                  try {
+                    setContractHealthExportClient(client);
+                    setContractHealthExportLoading(true);
+                    setContractHealthExportRange('3');
+                    setContractHealthExportYear('');
+                    const res = await fetch(`${API_URL}/api/contract-usage?clientId=${client.clientId}`);
+                    if (!res.ok) throw new Error('Failed to fetch contract usage history');
+                    const data = await res.json();
+                    setContractHealthExportData(data);
+                  } catch (err) {
+                    console.error('Error preparing export data:', err);
+                    alert('Failed to load contract usage data for export.');
+                    setContractHealthExportClient(null);
+                    setContractHealthExportData(null);
+                  } finally {
+                    setContractHealthExportLoading(false);
+                  }
+                };
+                return (
+                  <div key={client.clientId} className="bg-gray-800 rounded-lg border border-gray-700 p-4">
+                    <button
+                      type="button"
+                      className="w-full text-left font-medium text-white text-base mb-2 underline-offset-2 hover:underline touch-manipulation"
+                      onClick={openDetail}
+                    >
+                      {client.clientName}
+                    </button>
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      {client.contractType === 'Block Hours' ? (
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-600">📦 Block Hours</span>
+                      ) : client.contractType === 'Unlimited' ? (
+                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-600">♾️ Unlimited</span>
+                      ) : (
+                        <span className="text-sm text-gray-400">—</span>
+                      )}
+                      <span className={`text-xl ${statusColor}`}>{statusIcon}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm text-gray-300 mb-3">
+                      <div>
+                        <span className="text-gray-500">Block hrs: </span>
+                        {client.contractType === 'Block Hours' && allocatedHours ? `${allocatedHours}` : client.contractType === 'Unlimited' ? 'N/A' : '—'}
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Used: </span>
+                        {client.contractType === 'Unlimited' ? `${usedHours} hrs` : allocatedHours ? `${usedHours} hrs` : '—'}
+                      </div>
+                      <div>
+                        <span className="text-gray-500">% used: </span>
+                        {client.contractType === 'Unlimited' || percentage === null ? 'N/A' : `${percentage}%`}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={openDetail}
+                        className="flex-1 min-h-[44px] px-3 py-2 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white touch-manipulation"
+                      >
+                        View Details
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openExport}
+                        className="min-h-[44px] px-3 py-2 rounded-lg text-sm font-medium bg-gray-700 hover:bg-gray-600 text-white touch-manipulation"
+                      >
+                        ⬇ Export
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Desktop: table */}
+            <div className="hidden md:block bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-700">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Client Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Contract Type</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Block Hours</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Hours Used (This Month)</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">% Used</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-700">
                   {sortedData.map(client => {
                     const percentage = client.currentMonth?.percentage;
-                    
-                    // Determine row background color based on usage
                     let rowBgClass = '';
                     if (client.contractType === 'Block Hours' && percentage !== null) {
-                      if (percentage >= 91) {
-                        rowBgClass = 'bg-red-900 bg-opacity-20';
-                      } else if (percentage >= 71) {
-                        rowBgClass = 'bg-yellow-900 bg-opacity-20';
-                      }
+                      if (percentage >= 91) rowBgClass = 'bg-red-900 bg-opacity-20';
+                      else if (percentage >= 71) rowBgClass = 'bg-yellow-900 bg-opacity-20';
                     }
-                    
-                    // Status indicator color
                     let statusColor = 'text-gray-400';
                     let statusIcon = '—';
                     if (client.contractType === 'Block Hours' && percentage !== null) {
-                      if (percentage >= 91) {
-                        statusColor = 'text-red-400';
-                        statusIcon = '🔴';
-                      } else if (percentage >= 71) {
-                        statusColor = 'text-yellow-400';
-                        statusIcon = '🟡';
-                      } else {
-                        statusColor = 'text-green-400';
-                        statusIcon = '🟢';
-                      }
+                      if (percentage >= 91) { statusColor = 'text-red-400'; statusIcon = '🔴'; }
+                      else if (percentage >= 71) { statusColor = 'text-yellow-400'; statusIcon = '🟡'; }
+                      else { statusColor = 'text-green-400'; statusIcon = '🟢'; }
                     } else if (client.contractType === 'Unlimited') {
                       statusColor = 'text-purple-400';
                       statusIcon = '♾️';
                     }
-                    
                     const usedHours = client.currentMonth?.used || 0;
                     const allocatedHours = client.monthlyHours || null;
-                    
                     return (
-                      <React.Fragment key={client.clientId}>
-                        <tr className={`hover:bg-gray-700 transition-colors ${rowBgClass}`}>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <button
-                              type="button"
-                              className="text-sm font-medium text-white text-left underline-offset-2 hover:underline"
-                              onClick={() => {
-                                setContractHealthDetailClient(client);
-                                setContractHealthDetailLoading(true);
-                                setActiveView('contract-health-detail');
-                                fetch(`${API_URL}/api/contract-usage?clientId=${client.clientId}`)
-                                  .then((res) => {
-                                    if (!res.ok) {
-                                      throw new Error('Failed to fetch contract usage history');
-                                    }
-                                    return res.json();
-                                  })
-                                  .then((data) => {
-                                    setContractHealthDetailData(data);
-                                  })
-                                  .catch((error) => {
-                                    console.error('Error fetching contract usage history:', error);
-                                    setContractHealthDetailData(null);
-                                  })
-                                  .finally(() => {
-                                    setContractHealthDetailLoading(false);
-                                  });
-                              }}
-                            >
-                              {client.clientName}
-                            </button>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {client.contractType === 'Block Hours' ? (
-                              <span className="px-2 py-1 rounded text-xs font-medium bg-blue-600">
-                                📦 Block Hours
-                              </span>
-                            ) : client.contractType === 'Unlimited' ? (
-                              <span className="px-2 py-1 rounded text-xs font-medium bg-purple-600">
-                                ♾️ Unlimited
-                              </span>
-                            ) : (
-                              <span className="text-sm text-gray-400">—</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
-                            <div className="text-sm text-white">
-                              {client.contractType === 'Block Hours' && allocatedHours
-                                ? `${allocatedHours} hrs`
-                                : client.contractType === 'Unlimited'
-                                  ? 'N/A'
-                                  : '—'}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
-                            <div className="text-sm text-white">
-                              {client.contractType === 'Unlimited'
-                                ? `${usedHours} hrs`
-                                : allocatedHours
-                                  ? `${usedHours} hrs`
-                                  : '—'}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
-                            <div className="text-sm text-white">
-                              {client.contractType === 'Unlimited' || percentage === null
-                                ? 'N/A'
-                                : `${percentage}%`}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <span className={`text-2xl ${statusColor}`}>{statusIcon}</span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                try {
-                                  setContractHealthExportClient(client);
-                                  setContractHealthExportLoading(true);
-                                  setContractHealthExportRange('3');
-                                  setContractHealthExportYear('');
-                                  const res = await fetch(`${API_URL}/api/contract-usage?clientId=${client.clientId}`);
+                      <tr key={client.clientId} className={`hover:bg-gray-700 transition-colors ${rowBgClass}`}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <button
+                            type="button"
+                            className="text-sm font-medium text-white text-left underline-offset-2 hover:underline"
+                            onClick={() => {
+                              setContractHealthDetailClient(client);
+                              setContractHealthDetailLoading(true);
+                              setActiveView('contract-health-detail');
+                              fetch(`${API_URL}/api/contract-usage?clientId=${client.clientId}`)
+                                .then((res) => {
                                   if (!res.ok) throw new Error('Failed to fetch contract usage history');
-                                  const data = await res.json();
-                                  setContractHealthExportData(data);
-                                } catch (err) {
-                                  console.error('Error preparing export data:', err);
-                                  alert('Failed to load contract usage data for export.');
-                                  setContractHealthExportClient(null);
-                                  setContractHealthExportData(null);
-                                } finally {
-                                  setContractHealthExportLoading(false);
-                                }
-                              }}
-                              className="text-xs px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white"
-                            >
-                              ⬇ Export
-                            </button>
-                          </td>
-                        </tr>
-                      </React.Fragment>
+                                  return res.json();
+                                })
+                                .then((data) => setContractHealthDetailData(data))
+                                .catch((e) => { console.error(e); setContractHealthDetailData(null); })
+                                .finally(() => setContractHealthDetailLoading(false));
+                            }}
+                          >
+                            {client.clientName}
+                          </button>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {client.contractType === 'Block Hours' ? (
+                            <span className="px-2 py-1 rounded text-xs font-medium bg-blue-600">📦 Block Hours</span>
+                          ) : client.contractType === 'Unlimited' ? (
+                            <span className="px-2 py-1 rounded text-xs font-medium bg-purple-600">♾️ Unlimited</span>
+                          ) : (
+                            <span className="text-sm text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="text-sm text-white">
+                            {client.contractType === 'Block Hours' && allocatedHours ? `${allocatedHours} hrs` : client.contractType === 'Unlimited' ? 'N/A' : '—'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="text-sm text-white">
+                            {client.contractType === 'Unlimited' ? `${usedHours} hrs` : allocatedHours ? `${usedHours} hrs` : '—'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="text-sm text-white">
+                            {client.contractType === 'Unlimited' || percentage === null ? 'N/A' : `${percentage}%`}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <span className={`text-2xl ${statusColor}`}>{statusIcon}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                setContractHealthExportClient(client);
+                                setContractHealthExportLoading(true);
+                                setContractHealthExportRange('3');
+                                setContractHealthExportYear('');
+                                const res = await fetch(`${API_URL}/api/contract-usage?clientId=${client.clientId}`);
+                                if (!res.ok) throw new Error('Failed to fetch contract usage history');
+                                const data = await res.json();
+                                setContractHealthExportData(data);
+                              } catch (err) {
+                                console.error('Error preparing export data:', err);
+                                alert('Failed to load contract usage data for export.');
+                                setContractHealthExportClient(null);
+                                setContractHealthExportData(null);
+                              } finally {
+                                setContractHealthExportLoading(false);
+                              }
+                            }}
+                            className="text-xs px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white"
+                          >
+                            ⬇ Export
+                          </button>
+                        </td>
+                      </tr>
                     );
                   })}
-                </tbody>
-              </table>
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     );
@@ -1963,7 +2108,7 @@ function App() {
             setContractHealthDetailClient(null);
             setContractHealthDetailData(null);
           }}
-          className="mb-4 inline-flex items-center text-blue-400 hover:text-blue-300 text-sm"
+          className="mb-4 min-h-[44px] inline-flex items-center px-3 py-2 rounded-lg text-blue-400 hover:text-blue-300 hover:bg-gray-800 text-sm touch-manipulation"
         >
           ← Back to Contract Health
         </button>
@@ -1976,9 +2121,9 @@ function App() {
         ) : (
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-1">{data.client}</h2>
-                <p className="text-gray-400">
+              <div className="min-w-0">
+                <h2 className="text-xl sm:text-2xl font-bold text-white mb-1 break-words">{data.client}</h2>
+                <p className="text-gray-400 text-sm sm:text-base">
                   {data.contractType === 'Block Hours'
                     ? `Block Hours — ${data.monthlyHours ?? 'N/A'} hrs / month`
                     : data.contractType === 'Unlimited'
@@ -1999,11 +2144,11 @@ function App() {
                   .map((year) => (
                     <div key={year} className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
                       <details open>
-                        <summary className="cursor-pointer select-none px-4 py-3 bg-gray-900 flex items-center justify-between">
+                        <summary className="cursor-pointer select-none px-4 py-3 min-h-[44px] bg-gray-900 flex items-center justify-between gap-2 touch-manipulation">
                           <span className="text-lg font-semibold text-white">{year}</span>
-                          <span className="text-gray-400 text-sm">Click to expand/collapse</span>
+                          <span className="text-gray-400 text-xs sm:text-sm shrink-0">Tap to expand/collapse</span>
                         </summary>
-                        <div className="p-4 overflow-x-auto">
+                        <div className="p-3 sm:p-4 overflow-x-auto">
                           {(() => {
                             const yearMonths = monthsByYear[year];
                             const pctValues =
@@ -2045,15 +2190,16 @@ function App() {
                               </div>
                             );
                           })()}
-                          <table className="w-full text-sm">
+                          <div className="overflow-x-auto -mx-2 sm:mx-0">
+                          <table className="w-full text-sm min-w-[320px]">
                             <thead>
                               <tr className="border-b border-gray-700">
-                                <th className="text-left py-2 text-gray-400">Month</th>
-                                <th className="text-right py-2 text-gray-400">Allocated Hours</th>
-                                <th className="text-right py-2 text-gray-400">Used Hours</th>
-                                <th className="text-right py-2 text-gray-400">Remaining</th>
-                                <th className="text-right py-2 text-gray-400">% Used</th>
-                                <th className="text-right py-2 text-gray-400">Charges</th>
+                                <th className="text-left py-2 px-2 text-gray-400 text-xs sm:text-sm">Month</th>
+                                <th className="text-right py-2 px-1 text-gray-400 text-xs sm:text-sm">Alloc.</th>
+                                <th className="text-right py-2 px-1 text-gray-400 text-xs sm:text-sm">Used</th>
+                                <th className="text-right py-2 px-1 text-gray-400 text-xs sm:text-sm">Remain</th>
+                                <th className="text-right py-2 px-1 text-gray-400 text-xs sm:text-sm">%</th>
+                                <th className="text-right py-2 px-2 text-gray-400 text-xs sm:text-sm">Charges</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -2072,18 +2218,18 @@ function App() {
                                 }
                                 return (
                                   <tr key={m.month} className="border-b border-gray-800">
-                                    <td className="py-2 text-white">{monthLabel}</td>
-                                    <td className="py-2 text-right text-white">
+                                    <td className="py-2 px-2 text-white text-xs sm:text-sm">{monthLabel}</td>
+                                    <td className="py-2 px-1 text-right text-white text-xs sm:text-sm">
                                       {data.contractType === 'Unlimited' ? 'N/A' : m.allocated ?? '—'}
                                     </td>
-                                    <td className="py-2 text-right text-white">{m.used ?? 0}</td>
-                                    <td className="py-2 text-right text-white">
+                                    <td className="py-2 px-1 text-right text-white text-xs sm:text-sm">{m.used ?? 0}</td>
+                                    <td className="py-2 px-1 text-right text-white text-xs sm:text-sm">
                                       {data.contractType === 'Unlimited' ? 'N/A' : m.remaining ?? '—'}
                                     </td>
-                                    <td className={`py-2 text-right font-medium ${pctClass}`}>
+                                    <td className={`py-2 px-1 text-right font-medium text-xs sm:text-sm ${pctClass}`}>
                                       {data.contractType === 'Unlimited' || pct === null ? 'N/A' : `${pct}%`}
                                     </td>
-                                    <td className="py-2 text-right text-white">
+                                    <td className="py-2 px-2 text-right text-white text-xs sm:text-sm">
                                       {m.cost ? `$${m.cost.toFixed(2)}` : '$0.00'}
                                     </td>
                                   </tr>
@@ -2091,6 +2237,7 @@ function App() {
                               })}
                             </tbody>
                           </table>
+                          </div>
                         </div>
                       </details>
                     </div>
@@ -2168,21 +2315,21 @@ function App() {
     };
 
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => setContractHealthExportClient(null)}>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center p-0 sm:p-4 z-50 overflow-y-auto" onClick={() => setContractHealthExportClient(null)}>
         <div
-          className="bg-gray-800 rounded-lg p-6 max-w-md w-full border border-gray-700"
+          className="bg-gray-800 rounded-t-2xl sm:rounded-lg p-4 sm:p-6 max-w-md w-full border border-gray-700 border-b-0 sm:border-b max-h-[90vh] overflow-y-auto"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-white">Export Contract Usage</h3>
             <button
               onClick={() => setContractHealthExportClient(null)}
-              className="text-gray-400 hover:text-white text-xl"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center text-gray-400 hover:text-white text-xl touch-manipulation -mr-2"
             >
               ✕
             </button>
           </div>
-          <p className="text-sm text-gray-300 mb-4">
+          <p className="text-sm text-gray-300 mb-4 break-words">
             {client.clientName}
           </p>
           {contractHealthExportLoading ? (
@@ -2231,7 +2378,7 @@ function App() {
                     <select
                       value={contractHealthExportYear}
                       onChange={(e) => setContractHealthExportYear(e.target.value)}
-                      className="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:outline-none focus:border-blue-500 text-sm"
+                      className="w-full min-h-[44px] bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:outline-none focus:border-blue-500 text-sm touch-manipulation"
                     >
                       <option value="">Choose year…</option>
                       {years.map((y) => (
@@ -2243,16 +2390,16 @@ function App() {
                   </div>
                 )}
               </div>
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 mt-4">
                 <button
                   onClick={() => setContractHealthExportClient(null)}
-                  className="px-3 py-2 rounded bg-gray-700 hover:bg-gray-600 text-sm text-gray-200"
+                  className="min-h-[44px] px-4 py-2.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm text-gray-200 touch-manipulation"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={doExport}
-                  className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-sm font-medium text-white"
+                  className="min-h-[44px] px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-sm font-medium text-white touch-manipulation"
                 >
                   Export CSV
                 </button>
@@ -2267,8 +2414,8 @@ function App() {
   const renderSurveys = () => (
     <div>
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-white mb-2">Survey Templates</h2>
-        <p className="text-gray-400">Manage your survey templates and questions</p>
+        <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Survey Templates</h2>
+        <p className="text-gray-400 text-sm sm:text-base">Manage your survey templates and questions</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -2330,11 +2477,11 @@ function App() {
         </div>
       </header>
 
-      <nav className="bg-gray-800 border-b border-gray-700 px-3 sm:px-6">
-        <div className="flex gap-1 overflow-x-auto">
+      <nav className="bg-gray-800 border-b border-gray-700 px-2 sm:px-6">
+        <div className="flex gap-0.5 sm:gap-1 overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
           <button
             onClick={() => setActiveView('dashboard')}
-            className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
+            className={`min-h-[44px] px-3 py-2.5 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap touch-manipulation shrink-0 ${
               activeView === 'dashboard' 
                 ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
                 : 'text-gray-400 hover:text-white'
@@ -2344,7 +2491,7 @@ function App() {
           </button>
           <button
             onClick={() => setActiveView('clients')}
-            className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
+            className={`min-h-[44px] px-3 py-2.5 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap touch-manipulation shrink-0 ${
               activeView === 'clients' 
                 ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
                 : 'text-gray-400 hover:text-white'
@@ -2354,7 +2501,7 @@ function App() {
           </button>
           <button
             onClick={() => setActiveView('responses')}
-            className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
+            className={`min-h-[44px] px-3 py-2.5 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap touch-manipulation shrink-0 ${
               activeView === 'responses' 
                 ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
                 : 'text-gray-400 hover:text-white'
@@ -2364,7 +2511,7 @@ function App() {
           </button>
           <button
             onClick={() => setActiveView('pending')}
-            className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
+            className={`min-h-[44px] px-3 py-2.5 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap touch-manipulation shrink-0 ${
               activeView === 'pending' 
                 ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
                 : 'text-gray-400 hover:text-white'
@@ -2374,7 +2521,7 @@ function App() {
           </button>
           <button
             onClick={() => setActiveView('archives')}
-            className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
+            className={`min-h-[44px] px-3 py-2.5 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap touch-manipulation shrink-0 ${
               activeView === 'archives' 
                 ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
                 : 'text-gray-400 hover:text-white'
@@ -2385,7 +2532,7 @@ function App() {
           {isAdmin && (
             <button
               onClick={() => setActiveView('audit-logs')}
-              className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
+              className={`min-h-[44px] px-3 py-2.5 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap touch-manipulation shrink-0 ${
                 activeView === 'audit-logs' 
                   ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
                   : 'text-gray-400 hover:text-white'
@@ -2400,7 +2547,7 @@ function App() {
               setContractHealthDetailClient(null);
               setContractHealthDetailData(null);
             }}
-            className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
+            className={`min-h-[44px] px-3 py-2.5 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap touch-manipulation shrink-0 ${
               activeView === 'contract-health' || activeView === 'contract-health-detail'
                 ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
                 : 'text-gray-400 hover:text-white'
@@ -2410,7 +2557,7 @@ function App() {
           </button>
           <button
             onClick={() => setActiveView('surveys')}
-            className={`px-3 py-2 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap ${
+            className={`min-h-[44px] px-3 py-2.5 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap touch-manipulation shrink-0 ${
               activeView === 'surveys' 
                 ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400' 
                 : 'text-gray-400 hover:text-white'
