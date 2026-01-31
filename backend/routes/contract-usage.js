@@ -19,6 +19,7 @@ const db = require('../../database');
  * - hours_remaining (REAL)
  * - percentage_used (REAL)
  * - total_cost (REAL)
+ * - monthly_revenue (REAL)
  * - synced_at (TEXT)
  */
 
@@ -72,17 +73,20 @@ router.get('/contract-usage', (req, res) => {
         client: client.name,
         contractType: null,
         monthlyHours: null,
+        monthlyRevenue: null,
         months: []
       });
     }
     
-    // Get contract type and monthly hours from first record (all should be same)
+    // Get contract type, monthly hours, and monthly revenue from first record (all should be same per client)
     const firstRecord = usageData[0];
     const contractType = firstRecord.contract_type;
     const monthlyHours = firstRecord.monthly_hours;
+    const monthlyRevenue = firstRecord.monthly_revenue != null ? firstRecord.monthly_revenue : null;
     
     // Format months array
     const months = usageData.map(record => {
+      const revenue = record.monthly_revenue != null ? record.monthly_revenue : null;
       // For Unlimited contracts, return null for allocated, remaining, and percentage
       if (contractType === 'Unlimited') {
         return {
@@ -91,7 +95,8 @@ router.get('/contract-usage', (req, res) => {
           used: record.hours_used || 0,
           remaining: null,
           percentage: null,
-          cost: record.total_cost || 0
+          cost: record.total_cost || 0,
+          monthlyRevenue: revenue
         };
       }
       
@@ -102,7 +107,8 @@ router.get('/contract-usage', (req, res) => {
         used: record.hours_used || 0,
         remaining: record.hours_remaining !== null ? record.hours_remaining : null,
         percentage: record.percentage_used !== null ? Math.round(record.percentage_used) : null,
-        cost: record.total_cost || 0
+        cost: record.total_cost || 0,
+        monthlyRevenue: revenue
       };
     });
     
@@ -111,6 +117,7 @@ router.get('/contract-usage', (req, res) => {
       client: client.name,
       contractType: contractType,
       monthlyHours: monthlyHours,
+      monthlyRevenue: monthlyRevenue,
       months: months
     });
     
@@ -143,7 +150,8 @@ router.get('/contract-usage/all', (req, res) => {
         cu.hours_used,
         cu.hours_remaining,
         cu.percentage_used,
-        cu.total_cost
+        cu.total_cost,
+        cu.monthly_revenue
       FROM clients c
       LEFT JOIN contract_usage cu ON c.id = cu.client_id AND cu.month = ?
       WHERE c.company_type = 'managed' AND c.autotask_id IS NOT NULL
@@ -161,6 +169,7 @@ router.get('/contract-usage/all', (req, res) => {
           clientName: client.clientName,
           contractType: client.contractType || null,
           monthlyHours: isUnlimited ? null : (client.monthlyHours || null),
+          monthlyRevenue: client.monthly_revenue != null ? client.monthly_revenue : null,
           currentMonth: {
             month: client.month || currentMonth,
             allocated: isUnlimited ? null : (client.monthlyHours || null),

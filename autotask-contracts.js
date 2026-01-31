@@ -184,7 +184,7 @@ async function getContractBlocks(contractId) {
     
     console.log(`[getContractBlocks] Found ${blocks.length} blocks for contract ID: ${contractId}`);
     
-    // Return all blocks with full fields
+    // Return all blocks with full fields (hourlyRate used for Block Hours monthly revenue calc)
     const result = blocks.map(block => ({
       id: block.id,
       contractID: block.contractID,
@@ -194,7 +194,7 @@ async function getContractBlocks(contractId) {
       endDate: block.endDate || null,
       status: block.status || null,
       isActive: block.isActive || null,
-      // Include all other fields for reference
+      hourlyRate: block.hourlyRate != null ? parseFloat(block.hourlyRate) : (block.unitPrice != null ? parseFloat(block.unitPrice) : null),
       raw: block
     }));
     
@@ -208,6 +208,44 @@ async function getContractBlocks(contractId) {
     
   } catch (error) {
     console.error(`[getContractBlocks] Error fetching blocks for contract ID ${contractId}:`, 
+      error.response?.data || error.message);
+    throw error;
+  }
+}
+
+/**
+ * Get contract services for a contract (e.g. recurring monthly services)
+ * @param {number} contractId - Autotask contract ID
+ * @returns {Promise<Array>} Array of services with serviceName, periodType, unitPrice
+ */
+async function getContractServices(contractId) {
+  try {
+    console.log(`[getContractServices] Fetching services for contract ID: ${contractId}`);
+
+    const searchFilter = {
+      filter: [
+        { op: 'eq', field: 'contractID', value: contractId }
+      ]
+    };
+
+    const params = {
+      search: JSON.stringify(searchFilter)
+    };
+
+    const response = await autotaskAPI.get('/ContractServices/query', { params });
+    const items = response.data.items || [];
+
+    const result = items.map(svc => ({
+      serviceName: svc.serviceName || svc.name || null,
+      periodType: svc.periodType || svc.billingCycle || null,
+      unitPrice: svc.unitPrice != null ? parseFloat(svc.unitPrice) : null,
+      raw: svc
+    }));
+
+    console.log(`[getContractServices] Found ${result.length} services for contract ID: ${contractId}`);
+    return result;
+  } catch (error) {
+    console.error(`[getContractServices] Error fetching services for contract ID ${contractId}:`,
       error.response?.data || error.message);
     throw error;
   }
@@ -320,5 +358,6 @@ async function getMonthlyTimeEntries(contractId, year, month) {
 module.exports = {
   getClientContract,
   getContractBlocks,
+  getContractServices,
   getMonthlyTimeEntries
 };

@@ -1763,6 +1763,11 @@ function App() {
   const [contractHealthExportYear, setContractHealthExportYear] = useState('');
 
   const renderContractHealth = () => {
+    const formatRevenue = (v) =>
+      v != null && v !== 0
+        ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v)
+        : 'N/A';
+
     // Sort data
     const sortedData = [...contractHealthData].sort((a, b) => {
       if (contractHealthSortBy === 'name') {
@@ -1891,7 +1896,7 @@ function App() {
                     >
                       {client.clientName}
                     </button>
-                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
                       {client.contractType === 'Block Hours' ? (
                         <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-600">📦 Block Hours</span>
                       ) : client.contractType === 'Unlimited' ? (
@@ -1900,6 +1905,10 @@ function App() {
                         <span className="text-sm text-gray-400">—</span>
                       )}
                       <span className={`text-xl ${statusColor}`}>{statusIcon}</span>
+                    </div>
+                    <div className="text-sm text-gray-300 mb-2">
+                      <span className="text-gray-500">Monthly Revenue: </span>
+                      {formatRevenue(client.monthlyRevenue)}
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-sm text-gray-300 mb-3">
                       <div>
@@ -1943,9 +1952,8 @@ function App() {
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Client Name</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Contract Type</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Block Hours</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Hours Used (This Month)</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">% Used</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Monthly Revenue</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Current Month Usage</th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
                     </tr>
@@ -2004,17 +2012,16 @@ function App() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
                           <div className="text-sm text-white">
-                            {client.contractType === 'Block Hours' && allocatedHours ? `${allocatedHours} hrs` : client.contractType === 'Unlimited' ? 'N/A' : '—'}
+                            {formatRevenue(client.monthlyRevenue)}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
                           <div className="text-sm text-white">
-                            {client.contractType === 'Unlimited' ? `${usedHours} hrs` : allocatedHours ? `${usedHours} hrs` : '—'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className="text-sm text-white">
-                            {client.contractType === 'Unlimited' || percentage === null ? 'N/A' : `${percentage}%`}
+                            {client.contractType === 'Unlimited'
+                              ? `${usedHours} hrs`
+                              : allocatedHours != null
+                                ? `${usedHours} / ${allocatedHours} hrs (${percentage != null ? `${percentage}%` : '—'})`
+                                : '—'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center">

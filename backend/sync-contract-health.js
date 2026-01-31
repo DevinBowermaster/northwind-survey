@@ -1,7 +1,7 @@
 require('dotenv').config();
 const Database = require('better-sqlite3');
 const path = require('path');
-const { getClientContract, getMonthlyTimeEntries } = require('../autotask-contracts');
+const { getClientContract, getContractServices, getMonthlyTimeEntries } = require('../autotask-contracts');
 
 // Use persistent disk path in production, local file in development
 const dbPath = process.env.NODE_ENV === 'production' 
@@ -67,8 +67,9 @@ async function syncContractUsage() {
       hours_remaining,
       percentage_used,
       total_cost,
+      monthly_revenue,
       synced_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(client_id, month) DO UPDATE SET
       client_name = excluded.client_name,
       autotask_company_id = excluded.autotask_company_id,
@@ -79,6 +80,7 @@ async function syncContractUsage() {
       hours_remaining = excluded.hours_remaining,
       percentage_used = excluded.percentage_used,
       total_cost = excluded.total_cost,
+      monthly_revenue = excluded.monthly_revenue,
       synced_at = CURRENT_TIMESTAMP
   `);
   
@@ -105,6 +107,34 @@ async function syncContractUsage() {
         console.log('❌ No contract');
         await new Promise(resolve => setTimeout(resolve, 100));
         continue;
+      }
+
+      // Compute monthly revenue for this contract
+      let monthlyRevenue = null;
+      if (contract.displayType === 'Unlimited') {
+        const services = await getContractServices(contract.id);
+        const monthlyTotal = services
+          .filter(s => (s.periodType || '').toString().toLowerCase() === 'monthly')
+          .reduce((sum, s) => sum + (s.unitPrice || 0), 0);
+        monthlyRevenue = monthlyTotal > 0 ? Math.round(monthlyTotal * 100) / 100 : null;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      } else if (contract.displayType === 'Block Hours' && contract.monthlyAllocation != null && contract.blocks && contract.blocks.length > 0) {
+        // Use current block or most recent block for hourly rate (same order as getContractBlocks: most recent first)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const currentBlock = contract.blocks.find(b => {
+          if (!b.startDate || !b.endDate) return false;
+          const start = new Date(b.startDate);
+          const end = new Date(b.endDate);
+          end.setHours(23, 59, 59, 999);
+          return today >= start && today <= end;
+        });
+        const block = currentBlock || contract.blocks[0];
+        const hourlyRate = block.hourlyRate;
+        // TODO: Need actual invoice data from Autotask Invoices API for true monthly revenue
+        if (hourlyRate != null && hourlyRate > 0) {
+          monthlyRevenue = Math.round(contract.monthlyAllocation * hourlyRate * 100) / 100;
+        }
       }
       
       // Process each month
@@ -145,7 +175,8 @@ async function syncContractUsage() {
             hoursUsed,
             hoursRemaining,
             percentageUsed,
-            totalCost
+            totalCost,
+            monthlyRevenue
           );
           
           monthSuccess++;
