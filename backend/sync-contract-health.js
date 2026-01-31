@@ -109,32 +109,37 @@ async function syncContractUsage() {
         continue;
       }
 
-      // Compute monthly revenue for this contract
+      // Compute monthly revenue for this contract (non-fatal: on API error we keep monthlyRevenue = null)
       let monthlyRevenue = null;
-      if (contract.displayType === 'Unlimited') {
-        const services = await getContractServices(contract.id);
-        const monthlyTotal = services
-          .filter(s => (s.periodType || '').toString().toLowerCase() === 'monthly')
-          .reduce((sum, s) => sum + (s.unitPrice || 0), 0);
-        monthlyRevenue = monthlyTotal > 0 ? Math.round(monthlyTotal * 100) / 100 : null;
-        await new Promise(resolve => setTimeout(resolve, 100));
-      } else if (contract.displayType === 'Block Hours' && contract.monthlyAllocation != null && contract.blocks && contract.blocks.length > 0) {
-        // Use current block or most recent block for hourly rate (same order as getContractBlocks: most recent first)
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const currentBlock = contract.blocks.find(b => {
-          if (!b.startDate || !b.endDate) return false;
-          const start = new Date(b.startDate);
-          const end = new Date(b.endDate);
-          end.setHours(23, 59, 59, 999);
-          return today >= start && today <= end;
-        });
-        const block = currentBlock || contract.blocks[0];
-        const hourlyRate = block.hourlyRate;
-        // TODO: Need actual invoice data from Autotask Invoices API for true monthly revenue
-        if (hourlyRate != null && hourlyRate > 0) {
-          monthlyRevenue = Math.round(contract.monthlyAllocation * hourlyRate * 100) / 100;
+      try {
+        if (contract.displayType === 'Unlimited') {
+          const services = await getContractServices(contract.id);
+          const monthlyTotal = services
+            .filter(s => (s.periodType || '').toString().toLowerCase() === 'monthly')
+            .reduce((sum, s) => sum + (s.unitPrice || 0), 0);
+          monthlyRevenue = monthlyTotal > 0 ? Math.round(monthlyTotal * 100) / 100 : null;
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } else if (contract.displayType === 'Block Hours' && contract.monthlyAllocation != null && contract.blocks && contract.blocks.length > 0) {
+          // Use current block or most recent block for hourly rate (same order as getContractBlocks: most recent first)
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const currentBlock = contract.blocks.find(b => {
+            if (!b.startDate || !b.endDate) return false;
+            const start = new Date(b.startDate);
+            const end = new Date(b.endDate);
+            end.setHours(23, 59, 59, 999);
+            return today >= start && today <= end;
+          });
+          const block = currentBlock || contract.blocks[0];
+          const hourlyRate = block.hourlyRate;
+          // TODO: Need actual invoice data from Autotask Invoices API for true monthly revenue
+          if (hourlyRate != null && hourlyRate > 0) {
+            monthlyRevenue = Math.round(contract.monthlyAllocation * hourlyRate * 100) / 100;
+          }
         }
+      } catch (revenueError) {
+        console.warn(`\n     ⚠️  Monthly revenue skipped for ${client.name}: ${revenueError.message}`);
+        monthlyRevenue = null;
       }
       
       // Process each month

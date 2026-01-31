@@ -8,6 +8,7 @@ const { startScheduler } = require('./scheduler');
 const contractUsageRoutes = require('./backend/routes/contract-usage');
 const { migrateAddArchive } = require('./migrate-add-archive');
 const { migrateContractUsage } = require('./backend/migrate-contract-usage');
+const { migrateAddMonthlyRevenue } = require('./backend/migrate-add-monthly-revenue');
 const { syncContractUsage } = require('./backend/sync-contract-health');
 
 const app = express();
@@ -69,6 +70,7 @@ function logAuditEvent(userEmail, userName, action, entityType, entityId, oldVal
 try {
   migrateAddArchive();
   migrateContractUsage();
+  migrateAddMonthlyRevenue();
 } catch (err) {
   console.error('Error running startup migrations:', err);
 }
