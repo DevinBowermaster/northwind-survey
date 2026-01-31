@@ -1922,7 +1922,7 @@ function App() {
                           : '—'}
                       </div>
                       <div>
-                        <span className="text-gray-500">Total Unlimited contract amount: </span>
+                        <span className="text-gray-500">Unlimited contract amount: </span>
                         {client.contractType === 'Unlimited' ? formatRevenue(client.monthlyRevenue) : '—'}
                       </div>
                     </div>
@@ -1957,7 +1957,7 @@ function App() {
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Block Hours</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Hrs Billed This Month</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Overage Amount</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Total Unlimited Contract Amount</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Unlimited Contract Amount</th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
                     </tr>

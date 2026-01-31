@@ -81,16 +81,16 @@ router.get('/contract-usage', (req, res) => {
       });
     }
     
-    // Get contract type, monthly hours, and monthly revenue from first record (all should be same per client)
+    // Get contract type, monthly hours, and unlimited contract amount (monthly_revenue) from first record
     const firstRecord = usageData[0];
     const contractType = firstRecord.contract_type;
-    const monthlyHours = firstRecord.monthly_hours;
-    const monthlyRevenue = firstRecord.monthly_revenue != null ? firstRecord.monthly_revenue : null;
+    const monthlyHours = firstRecord.monthly_hours != null ? Number(firstRecord.monthly_hours) : null;
+    const monthlyRevenue = firstRecord.monthly_revenue != null ? Number(firstRecord.monthly_revenue) : null;
     
     // Format months array
     const months = usageData.map(record => {
-      const revenue = record.monthly_revenue != null ? record.monthly_revenue : null;
-      const overageAmount = record.overage_amount != null ? record.overage_amount : null;
+      const revenue = record.monthly_revenue != null ? Number(record.monthly_revenue) : null;
+      const overageAmount = record.overage_amount != null ? Number(record.overage_amount) : null;
       // For Unlimited contracts, return null for allocated, remaining, percentage, overage
       if (contractType === 'Unlimited') {
         return {
@@ -157,34 +157,35 @@ router.get('/contract-usage/all', (req, res) => {
         cu.hours_remaining,
         cu.percentage_used,
         cu.total_cost,
-        cu.monthly_revenue,
-        cu.overage_amount
+        cu.monthly_revenue as monthly_revenue,
+        cu.overage_amount as overage_amount
       FROM clients c
       LEFT JOIN contract_usage cu ON c.id = cu.client_id AND cu.month = ?
       WHERE c.company_type = 'managed' AND c.autotask_id IS NOT NULL
       ORDER BY cu.client_name ASC
     `).all(currentMonth);
     
-    // Format response array
+    // Format response array - include unlimited contract amount (monthly_revenue) for Unlimited contracts
     const result = clients
       .filter(client => client.clientName) // Only include clients with contract usage data
       .map(client => {
         const isUnlimited = client.contractType === 'Unlimited';
+        const unlimitedAmount = client.monthly_revenue != null ? Number(client.monthly_revenue) : null;
         
         return {
           clientId: client.clientId,
           clientName: client.clientName,
           contractType: client.contractType || null,
-          monthlyHours: isUnlimited ? null : (client.monthlyHours || null),
-          monthlyRevenue: isUnlimited && client.monthly_revenue != null ? client.monthly_revenue : null,
+          monthlyHours: isUnlimited ? null : (client.monthlyHours != null ? Number(client.monthlyHours) : null),
+          monthlyRevenue: isUnlimited ? unlimitedAmount : null,
           currentMonth: {
             month: client.month || currentMonth,
-            allocated: isUnlimited ? null : (client.monthlyHours || null),
-            used: client.hours_used || 0,
-            remaining: isUnlimited ? null : (client.hours_remaining !== null ? client.hours_remaining : null),
-            percentage: isUnlimited ? null : (client.percentage_used !== null ? Math.round(client.percentage_used) : null),
-            cost: client.total_cost || 0,
-            overageAmount: isUnlimited ? null : (client.overage_amount != null ? client.overage_amount : null)
+            allocated: isUnlimited ? null : (client.monthlyHours != null ? Number(client.monthlyHours) : null),
+            used: client.hours_used != null ? Number(client.hours_used) : 0,
+            remaining: isUnlimited ? null : (client.hours_remaining !== null ? Number(client.hours_remaining) : null),
+            percentage: isUnlimited ? null : (client.percentage_used !== null ? Math.round(Number(client.percentage_used)) : null),
+            cost: client.total_cost != null ? Number(client.total_cost) : 0,
+            overageAmount: isUnlimited ? null : (client.overage_amount != null ? Number(client.overage_amount) : null)
           }
         };
       });
