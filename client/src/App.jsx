@@ -1906,10 +1906,6 @@ function App() {
                       )}
                       <span className={`text-xl ${statusColor}`}>{statusIcon}</span>
                     </div>
-                    <div className="text-sm text-gray-300 mb-2">
-                      <span className="text-gray-500">Monthly Revenue: </span>
-                      {client.contractType === 'Unlimited' ? formatRevenue(client.monthlyRevenue) : 'N/A'}
-                    </div>
                     <div className="grid grid-cols-2 gap-2 text-sm text-gray-300 mb-2">
                       <div>
                         <span className="text-gray-500">Block hrs: </span>
@@ -1919,12 +1915,16 @@ function App() {
                         <span className="text-gray-500">Hrs billed this month: </span>
                         {client.contractType === 'Unlimited' ? `${usedHours} hrs` : allocatedHours != null ? `${usedHours} hrs` : '—'}
                       </div>
-                      {client.contractType === 'Block Hours' && client.currentMonth?.overageAmount != null && client.currentMonth.overageAmount > 0 && (
-                        <div className="col-span-2">
-                          <span className="text-gray-500">Overage amount: </span>
-                          {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(client.currentMonth.overageAmount)}
-                        </div>
-                      )}
+                      <div>
+                        <span className="text-gray-500">Overage amount: </span>
+                        {client.contractType === 'Block Hours' && client.currentMonth?.overageAmount != null && client.currentMonth.overageAmount > 0
+                          ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(client.currentMonth.overageAmount)
+                          : '—'}
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Total Unlimited contract amount: </span>
+                        {client.contractType === 'Unlimited' ? formatRevenue(client.monthlyRevenue) : '—'}
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -1954,10 +1954,10 @@ function App() {
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Client Name</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Contract Type</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Monthly Revenue</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Block Hours</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Hrs Billed This Month</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Overage Amount</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Total Unlimited Contract Amount</th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
                     </tr>
@@ -2016,11 +2016,6 @@ function App() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
                           <div className="text-sm text-white">
-                            {client.contractType === 'Unlimited' ? formatRevenue(client.monthlyRevenue) : 'N/A'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className="text-sm text-white">
                             {client.contractType === 'Block Hours' && allocatedHours != null ? `${allocatedHours} hrs` : client.contractType === 'Unlimited' ? 'N/A' : '—'}
                           </div>
                         </td>
@@ -2034,6 +2029,11 @@ function App() {
                             {client.contractType === 'Block Hours' && client.currentMonth?.overageAmount != null && client.currentMonth.overageAmount > 0
                               ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(client.currentMonth.overageAmount)
                               : '—'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="text-sm text-white">
+                            {client.contractType === 'Unlimited' ? formatRevenue(client.monthlyRevenue) : '—'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center">
