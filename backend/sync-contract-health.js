@@ -68,8 +68,9 @@ async function syncContractUsage() {
       percentage_used,
       total_cost,
       monthly_revenue,
+      overage_amount,
       synced_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(client_id, month) DO UPDATE SET
       client_name = excluded.client_name,
       autotask_company_id = excluded.autotask_company_id,
@@ -81,6 +82,7 @@ async function syncContractUsage() {
       percentage_used = excluded.percentage_used,
       total_cost = excluded.total_cost,
       monthly_revenue = excluded.monthly_revenue,
+      overage_amount = excluded.overage_amount,
       synced_at = CURRENT_TIMESTAMP
   `);
   
@@ -109,7 +111,7 @@ async function syncContractUsage() {
         continue;
       }
 
-      // Compute monthly revenue for this contract (non-fatal: on API error we keep monthlyRevenue = null)
+      // Monthly revenue: Unlimited only (sum of monthly recurring services). Block Hours: not calculated.
       let monthlyRevenue = null;
       try {
         if (contract.displayType === 'Unlimited') {
@@ -119,27 +121,26 @@ async function syncContractUsage() {
             .reduce((sum, s) => sum + (s.unitPrice || 0), 0);
           monthlyRevenue = monthlyTotal > 0 ? Math.round(monthlyTotal * 100) / 100 : null;
           await new Promise(resolve => setTimeout(resolve, 100));
-        } else if (contract.displayType === 'Block Hours' && contract.monthlyAllocation != null && contract.blocks && contract.blocks.length > 0) {
-          // Use current block or most recent block for hourly rate (same order as getContractBlocks: most recent first)
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          const currentBlock = contract.blocks.find(b => {
-            if (!b.startDate || !b.endDate) return false;
-            const start = new Date(b.startDate);
-            const end = new Date(b.endDate);
-            end.setHours(23, 59, 59, 999);
-            return today >= start && today <= end;
-          });
-          const block = currentBlock || contract.blocks[0];
-          const hourlyRate = block.hourlyRate;
-          // TODO: Need actual invoice data from Autotask Invoices API for true monthly revenue
-          if (hourlyRate != null && hourlyRate > 0) {
-            monthlyRevenue = Math.round(contract.monthlyAllocation * hourlyRate * 100) / 100;
-          }
         }
       } catch (revenueError) {
         console.warn(`\n     ⚠️  Monthly revenue skipped for ${client.name}: ${revenueError.message}`);
         monthlyRevenue = null;
+      }
+
+      // Block hourly rate (for overage_amount only): current or most recent block
+      let blockHourlyRate = null;
+      if (contract.displayType === 'Block Hours' && contract.blocks && contract.blocks.length > 0) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const currentBlock = contract.blocks.find(b => {
+          if (!b.startDate || !b.endDate) return false;
+          const start = new Date(b.startDate);
+          const end = new Date(b.endDate);
+          end.setHours(23, 59, 59, 999);
+          return today >= start && today <= end;
+        });
+        const block = currentBlock || contract.blocks[0];
+        blockHourlyRate = block.hourlyRate != null && block.hourlyRate > 0 ? block.hourlyRate : null;
       }
       
       // Process each month
@@ -167,6 +168,13 @@ async function syncContractUsage() {
             hoursRemaining = Math.max(0, monthlyHours - hoursUsed);
             percentageUsed = monthlyHours > 0 ? (hoursUsed / monthlyHours) * 100 : 0;
           }
+
+          // Overage amount: Block Hours only, when hours used exceeds allocation
+          let overageAmount = null;
+          if (contract.displayType === 'Block Hours' && monthlyHours != null && hoursUsed > monthlyHours && blockHourlyRate != null) {
+            const overageHours = hoursUsed - monthlyHours;
+            overageAmount = Math.round(overageHours * blockHourlyRate * 100) / 100;
+          }
           
           // Insert or update
           insertOrUpdate.run(
@@ -181,7 +189,8 @@ async function syncContractUsage() {
             hoursRemaining,
             percentageUsed,
             totalCost,
-            monthlyRevenue
+            monthlyRevenue,
+            overageAmount
           );
           
           monthSuccess++;

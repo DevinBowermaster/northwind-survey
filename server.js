@@ -9,6 +9,7 @@ const contractUsageRoutes = require('./backend/routes/contract-usage');
 const { migrateAddArchive } = require('./migrate-add-archive');
 const { migrateContractUsage } = require('./backend/migrate-contract-usage');
 const { migrateAddMonthlyRevenue } = require('./backend/migrate-add-monthly-revenue');
+const { migrateAddOverageAmount } = require('./backend/migrate-add-overage-amount');
 const { syncContractUsage } = require('./backend/sync-contract-health');
 
 const app = express();
@@ -71,6 +72,7 @@ try {
   migrateAddArchive();
   migrateContractUsage();
   migrateAddMonthlyRevenue();
+  migrateAddOverageAmount();
 } catch (err) {
   console.error('Error running startup migrations:', err);
 }

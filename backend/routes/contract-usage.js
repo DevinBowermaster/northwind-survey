@@ -19,7 +19,8 @@ const db = require('../../database');
  * - hours_remaining (REAL)
  * - percentage_used (REAL)
  * - total_cost (REAL)
- * - monthly_revenue (REAL)
+ * - monthly_revenue (REAL) - Unlimited estimated monthly revenue only
+ * - overage_amount (REAL) - Block Hours overage charge when hours_used > monthly_hours
  * - synced_at (TEXT)
  */
 
@@ -61,7 +62,9 @@ router.get('/contract-usage', (req, res) => {
         hours_used,
         hours_remaining,
         percentage_used,
-        total_cost
+        total_cost,
+        monthly_revenue,
+        overage_amount
       FROM contract_usage
       WHERE client_id = ?
       ORDER BY month DESC
@@ -87,7 +90,8 @@ router.get('/contract-usage', (req, res) => {
     // Format months array
     const months = usageData.map(record => {
       const revenue = record.monthly_revenue != null ? record.monthly_revenue : null;
-      // For Unlimited contracts, return null for allocated, remaining, and percentage
+      const overageAmount = record.overage_amount != null ? record.overage_amount : null;
+      // For Unlimited contracts, return null for allocated, remaining, percentage, overage
       if (contractType === 'Unlimited') {
         return {
           month: record.month,
@@ -96,11 +100,12 @@ router.get('/contract-usage', (req, res) => {
           remaining: null,
           percentage: null,
           cost: record.total_cost || 0,
-          monthlyRevenue: revenue
+          monthlyRevenue: revenue,
+          overageAmount: null
         };
       }
       
-      // For Block Hours contracts, return all values
+      // For Block Hours contracts, return all values including overage when present
       return {
         month: record.month,
         allocated: record.monthly_hours || null,
@@ -108,7 +113,8 @@ router.get('/contract-usage', (req, res) => {
         remaining: record.hours_remaining !== null ? record.hours_remaining : null,
         percentage: record.percentage_used !== null ? Math.round(record.percentage_used) : null,
         cost: record.total_cost || 0,
-        monthlyRevenue: revenue
+        monthlyRevenue: null,
+        overageAmount: overageAmount
       };
     });
     
@@ -151,7 +157,8 @@ router.get('/contract-usage/all', (req, res) => {
         cu.hours_remaining,
         cu.percentage_used,
         cu.total_cost,
-        cu.monthly_revenue
+        cu.monthly_revenue,
+        cu.overage_amount
       FROM clients c
       LEFT JOIN contract_usage cu ON c.id = cu.client_id AND cu.month = ?
       WHERE c.company_type = 'managed' AND c.autotask_id IS NOT NULL
@@ -169,14 +176,15 @@ router.get('/contract-usage/all', (req, res) => {
           clientName: client.clientName,
           contractType: client.contractType || null,
           monthlyHours: isUnlimited ? null : (client.monthlyHours || null),
-          monthlyRevenue: client.monthly_revenue != null ? client.monthly_revenue : null,
+          monthlyRevenue: isUnlimited && client.monthly_revenue != null ? client.monthly_revenue : null,
           currentMonth: {
             month: client.month || currentMonth,
             allocated: isUnlimited ? null : (client.monthlyHours || null),
             used: client.hours_used || 0,
             remaining: isUnlimited ? null : (client.hours_remaining !== null ? client.hours_remaining : null),
             percentage: isUnlimited ? null : (client.percentage_used !== null ? Math.round(client.percentage_used) : null),
-            cost: client.total_cost || 0
+            cost: client.total_cost || 0,
+            overageAmount: isUnlimited ? null : (client.overage_amount != null ? client.overage_amount : null)
           }
         };
       });
