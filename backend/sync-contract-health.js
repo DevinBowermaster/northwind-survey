@@ -111,19 +111,21 @@ async function syncContractUsage() {
         continue;
       }
 
-      // Monthly revenue: Unlimited only (sum of monthly recurring services). Block Hours: not calculated.
+      // Unlimited contract amount: sum of all contract services (ContractServices entity has no periodType in REST response).
+      // Use adjustedPrice when present, else unitPrice.
       let monthlyRevenue = null;
       try {
         if (contract.displayType === 'Unlimited') {
           const services = await getContractServices(contract.id);
-          const monthlyTotal = services
-            .filter(s => (s.periodType || '').toString().toLowerCase() === 'monthly')
-            .reduce((sum, s) => sum + (s.unitPrice || 0), 0);
+          const monthlyTotal = services.reduce((sum, s) => {
+            const price = s.adjustedPrice != null ? s.adjustedPrice : (s.unitPrice || 0);
+            return sum + price;
+          }, 0);
           monthlyRevenue = monthlyTotal > 0 ? Math.round(monthlyTotal * 100) / 100 : null;
           await new Promise(resolve => setTimeout(resolve, 100));
         }
       } catch (revenueError) {
-        console.warn(`\n     ⚠️  Monthly revenue skipped for ${client.name}: ${revenueError.message}`);
+        console.warn(`\n     ⚠️  Unlimited contract amount skipped for ${client.name}: ${revenueError.message}`);
         monthlyRevenue = null;
       }
 

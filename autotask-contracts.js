@@ -239,6 +239,7 @@ async function getContractServices(contractId) {
       serviceName: svc.serviceName || svc.name || null,
       periodType: svc.periodType || svc.billingCycle || null,
       unitPrice: svc.unitPrice != null ? parseFloat(svc.unitPrice) : null,
+      adjustedPrice: svc.adjustedPrice != null ? parseFloat(svc.adjustedPrice) : null,
       raw: svc
     }));
 
