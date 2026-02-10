@@ -57,7 +57,8 @@ router.get('/contract-usage', (req, res) => {
     }
     
     // Get contract usage data for this client (last 3 months, newest first)
-    const usageData = db.prepare(`
+    // Use fallback query when discount/rate columns don't exist (migration not run yet)
+    const queryWithRates = `
       SELECT 
         client_name,
         contract_type,
@@ -76,7 +77,34 @@ router.get('/contract-usage', (req, res) => {
       WHERE client_id = ?
       ORDER BY month DESC
       LIMIT 3
-    `).all(clientId);
+    `;
+    const queryWithoutRates = `
+      SELECT 
+        client_name,
+        contract_type,
+        monthly_hours,
+        month,
+        hours_used,
+        hours_remaining,
+        percentage_used,
+        total_cost,
+        monthly_revenue,
+        overage_amount
+      FROM contract_usage
+      WHERE client_id = ?
+      ORDER BY month DESC
+      LIMIT 3
+    `;
+    let usageData;
+    try {
+      usageData = db.prepare(queryWithRates).all(clientId);
+    } catch (err) {
+      if (err.code === 'SQLITE_ERROR' && err.message && err.message.includes('no such column')) {
+        usageData = db.prepare(queryWithoutRates).all(clientId);
+      } else {
+        throw err;
+      }
+    }
     
     if (usageData.length === 0) {
       // No usage data found, return basic client info
@@ -181,8 +209,7 @@ router.get('/contract-usage/all', (req, res) => {
     const months = getLastThreeMonths();
     const currentMonth = months[0];
     
-    // Get all managed clients with their current month contract usage
-    const clients = db.prepare(`
+    const queryWithRates = `
       SELECT 
         c.id as clientId,
         cu.client_name as clientName,
@@ -202,7 +229,36 @@ router.get('/contract-usage/all', (req, res) => {
       LEFT JOIN contract_usage cu ON c.id = cu.client_id AND cu.month = ?
       WHERE c.company_type = 'managed' AND c.autotask_id IS NOT NULL
       ORDER BY cu.client_name ASC
-    `).all(currentMonth);
+    `;
+    const queryWithoutRates = `
+      SELECT 
+        c.id as clientId,
+        cu.client_name as clientName,
+        cu.contract_type as contractType,
+        cu.monthly_hours as monthlyHours,
+        cu.month,
+        cu.hours_used,
+        cu.hours_remaining,
+        cu.percentage_used,
+        cu.total_cost,
+        cu.monthly_revenue as monthly_revenue,
+        cu.overage_amount as overage_amount
+      FROM clients c
+      LEFT JOIN contract_usage cu ON c.id = cu.client_id AND cu.month = ?
+      WHERE c.company_type = 'managed' AND c.autotask_id IS NOT NULL
+      ORDER BY cu.client_name ASC
+    `;
+
+    let clients;
+    try {
+      clients = db.prepare(queryWithRates).all(currentMonth);
+    } catch (err) {
+      if (err.code === 'SQLITE_ERROR' && err.message && err.message.includes('no such column')) {
+        clients = db.prepare(queryWithoutRates).all(currentMonth);
+      } else {
+        throw err;
+      }
+    }
     
     // Format response array - include unlimited contract amount (monthly_revenue) for Unlimited contracts
     const result = clients
