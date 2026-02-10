@@ -29,30 +29,17 @@ async function getClientContract(companyId) {
     
     console.log(`[getClientContract] Found ${allContracts.length} total contracts for company ID: ${companyId}`);
     
-    // Filter for active contracts (status = 1 is Active, numeric ID)
-    // Also filter out status that might be 'Complete' or 'Canceled' if they're strings
-    const activeContracts = allContracts.filter(contract => {
-      const status = contract.status;
-      // Status 1 = Active (numeric)
-      if (typeof status === 'number') {
-        return status === 1;
-      }
-      // If it's a string, filter out Complete/Canceled
-      if (typeof status === 'string') {
-        const statusLower = status.toLowerCase();
-        return statusLower !== 'complete' && statusLower !== 'canceled';
-      }
-      // Default: include if status exists
-      return status != null;
-    });
+    // Filter to active contracts (status = 1)
+    const activeContracts = allContracts.filter(c => c.status === 1);
     
     if (activeContracts.length === 0) {
       console.log(`[getClientContract] No active contract found for company ID: ${companyId}`);
       return null;
     }
     
-    // Return the first active contract
-    const contract = activeContracts[0];
+    // ALWAYS prefer category 12 (Managed Service Unlimited) over others (e.g. SaaS category 16)
+    const category12 = activeContracts.find(c => c.contractCategory === 12);
+    const contract = category12 || activeContracts[0];
     
     // Log the FULL contract object to see all available fields
     console.log(`[getClientContract] Full contract object from API:`);
@@ -65,59 +52,97 @@ async function getClientContract(companyId) {
     let displayType = 'Unknown';
     let isUnlimited = false;
     let blocks = null;
-    
-    if (contractType === 4 && contractCategory === 13) {
-      // Block Hours client - query blocks to get monthly allocation
+    let blockHourlyRate = null;
+
+    // Category 12 = Managed Service. Always display as Unlimited.
+    // Special case: some category 12 contracts are Type 4 (Block Hours billing) like COLLIERS/WESTWATER.
+    if (contractCategory === 12) {
+      displayType = 'Unlimited';
+      isUnlimited = true;
+      console.log(`[getClientContract] Managed Service (category 12) contract`);
+
+      if (contractType === 4) {
+        // Category 12 + Type 4: display as Unlimited but use Block Hours-style allocation and rate.
+        console.log('[getClientContract] Category 12 + Type 4 (Unlimited display, Block Hours billing)');
+        try {
+          blocks = await getContractBlocks(contract.id);
+          if (blocks && blocks.length > 0) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+
+            const currentBlock = blocks.find(block => {
+              if (!block.startDate || !block.endDate) return false;
+              const startDate = new Date(block.startDate);
+              const endDate = new Date(block.endDate);
+              startDate.setHours(0, 0, 0, 0);
+              endDate.setHours(23, 59, 59, 999);
+              return today >= startDate && today <= endDate;
+            });
+
+            const chosenBlock = currentBlock || blocks[0];
+            if (chosenBlock && chosenBlock.hours) {
+              monthlyAllocation = chosenBlock.hours;
+              blockHourlyRate = chosenBlock.hourlyRate != null ? chosenBlock.hourlyRate : null;
+              console.log(`[getClientContract] Using block hours for category 12 Type 4: ${monthlyAllocation} hours at rate ${blockHourlyRate}`);
+            } else {
+              console.warn('[getClientContract] Category 12 Type 4: blocks found but no hours; falling back to estimatedHours');
+              monthlyAllocation = contract.estimatedHours || null;
+            }
+          } else {
+            monthlyAllocation = contract.estimatedHours || null;
+            console.log('[getClientContract] Category 12 Type 4: no blocks, using estimatedHours:', monthlyAllocation);
+          }
+        } catch (error) {
+          console.warn('[getClientContract] Category 12 Type 4: error fetching blocks, using estimatedHours:', error.message);
+          monthlyAllocation = contract.estimatedHours || null;
+        }
+      } else {
+        // Type 7 = true Unlimited; no block allocation
+        monthlyAllocation = null;
+      }
+    } else if (contractType === 4 && contractCategory === 13) {
+      // Type 4, Category 13 = regular Block Hours
       displayType = 'Block Hours';
       console.log(`[getClientContract] Identified as Block Hours contract`);
-      
+
       try {
         blocks = await getContractBlocks(contract.id);
         if (blocks && blocks.length > 0) {
-          // Find the block that covers today's date (current active block)
           const today = new Date();
-          today.setHours(0, 0, 0, 0); // Reset time to start of day
-          
+          today.setHours(0, 0, 0, 0);
+
           const currentBlock = blocks.find(block => {
             if (!block.startDate || !block.endDate) return false;
             const startDate = new Date(block.startDate);
             const endDate = new Date(block.endDate);
             startDate.setHours(0, 0, 0, 0);
-            endDate.setHours(23, 59, 59, 999); // End of day
+            endDate.setHours(23, 59, 59, 999);
             return today >= startDate && today <= endDate;
           });
-          
-          if (currentBlock && currentBlock.hours) {
-            monthlyAllocation = currentBlock.hours;
-            console.log(`[getClientContract] Monthly allocation from current block (covers today): ${monthlyAllocation} hours (from block ID ${currentBlock.id}, ${currentBlock.startDate} to ${currentBlock.endDate})`);
+
+          const chosenBlock = currentBlock || blocks[0];
+          if (chosenBlock && chosenBlock.hours) {
+            monthlyAllocation = chosenBlock.hours;
+            blockHourlyRate = chosenBlock.hourlyRate != null ? chosenBlock.hourlyRate : null;
+            console.log(`[getClientContract] Monthly allocation from block: ${monthlyAllocation} hours at rate ${blockHourlyRate}`);
           } else {
-            // If no current block, use the most recent block (by endDate, already sorted)
-            const mostRecentBlock = blocks[0];
-            if (mostRecentBlock && mostRecentBlock.hours) {
-              monthlyAllocation = mostRecentBlock.hours;
-              console.log(`[getClientContract] No current block found, using most recent block: ${monthlyAllocation} hours (from block ID ${mostRecentBlock.id}, ended ${mostRecentBlock.endDate})`);
-            } else {
-              console.warn(`[getClientContract] Blocks found but none have hours value. Block data:`, JSON.stringify(blocks[0], null, 2));
-              // Only fall back to estimatedHours if blocks have no hours value
-              monthlyAllocation = contract.estimatedHours || null;
-              console.log(`[getClientContract] Using estimatedHours as fallback: ${monthlyAllocation}`);
-            }
+            console.warn('[getClientContract] Blocks found but none have hours; falling back to estimatedHours');
+            monthlyAllocation = contract.estimatedHours || null;
           }
         } else {
-          // Only fallback to estimatedHours if NO blocks found at all
           monthlyAllocation = contract.estimatedHours || null;
-          console.log(`[getClientContract] No blocks found, using estimatedHours: ${monthlyAllocation}`);
+          console.log('[getClientContract] No blocks found, using estimatedHours:', monthlyAllocation);
         }
       } catch (error) {
-        console.warn(`[getClientContract] Error fetching blocks, using estimatedHours:`, error.message);
+        console.warn('[getClientContract] Error fetching blocks, using estimatedHours:', error.message);
         monthlyAllocation = contract.estimatedHours || null;
       }
-    } else if (contractType === 7 || contractCategory === 12) {
-      // Unlimited client
+    } else if (contractType === 7) {
+      // Other Unlimited contracts (non-category-12) - treat as Unlimited display with no allocation
       monthlyAllocation = null;
       displayType = 'Unlimited';
       isUnlimited = true;
-      console.log(`[getClientContract] Identified as Unlimited contract`);
+      console.log('[getClientContract] Identified as Unlimited contract (type 7)');
     } else {
       displayType = `Type ${contractType}, Category ${contractCategory}`;
       console.log(`[getClientContract] Unknown contract type combination: Type ${contractType}, Category ${contractCategory}`);
@@ -129,9 +154,13 @@ async function getClientContract(companyId) {
       contractCategory: contractCategory, // Numeric ID
       status: contract.status, // Numeric ID (1 = Active)
       displayType: displayType, // "Block Hours", "Unlimited", or "Unknown"
-      monthlyAllocation: monthlyAllocation, // Hours for Block Hours, null for Unlimited
+      monthlyAllocation: monthlyAllocation, // Hours for Block Hours, or for category 12 Type 4 pseudo-blocks
+      blockHourlyRate: blockHourlyRate,
       isUnlimited: isUnlimited,
       estimatedHours: contract.estimatedHours, // Keep raw value for reference
+      estimatedRevenue: contract.estimatedRevenue != null ? parseFloat(contract.estimatedRevenue) : null,
+      startDate: contract.startDate || null,
+      endDate: contract.endDate || null,
       blocks: blocks // Include blocks array for Block Hours contracts
     };
     
@@ -216,9 +245,13 @@ async function getContractBlocks(contractId) {
 /**
  * Get contract services for a contract (e.g. recurring monthly services)
  * @param {number} contractId - Autotask contract ID
- * @returns {Promise<Array>} Array of services with serviceName, periodType, unitPrice
+ * @param {{ logRaw?: boolean }} options - If logRaw is true, log full raw API objects for debugging
+ * @returns {Promise<Array>} Array of services with mapped fields + raw (all API fields)
+ *
+ * NOTE: We intentionally do NOT use IncludeFields here. Let the API return
+ * all available fields so we can see exactly what exists (units, extendedPrice, etc).
  */
-async function getContractServices(contractId) {
+async function getContractServices(contractId, options = {}) {
   try {
     console.log(`[getContractServices] Fetching services for contract ID: ${contractId}`);
 
@@ -235,15 +268,40 @@ async function getContractServices(contractId) {
     const response = await autotaskAPI.get('/ContractServices/query', { params });
     const items = response.data.items || [];
 
-    const result = items.map(svc => ({
-      serviceName: svc.serviceName || svc.name || null,
-      periodType: svc.periodType || svc.billingCycle || null,
-      unitPrice: svc.unitPrice != null ? parseFloat(svc.unitPrice) : null,
-      adjustedPrice: svc.adjustedPrice != null ? parseFloat(svc.adjustedPrice) : null,
-      raw: svc
-    }));
+    const result = items.map(svc => {
+      const unitPrice = svc.unitPrice != null ? parseFloat(svc.unitPrice) : null;
+      const adjustedPrice = svc.adjustedPrice != null ? parseFloat(svc.adjustedPrice) : null;
+      const adjustedUnitPrice = svc.adjustedUnitPrice != null ? parseFloat(svc.adjustedUnitPrice) : null;
+      const units = svc.units != null ? parseFloat(svc.units) : null;
+      const extendedPrice = svc.extendedPrice != null ? parseFloat(svc.extendedPrice) : null;
+      const internalCurrencyUnitPrice = svc.internalCurrencyUnitPrice != null ? parseFloat(svc.internalCurrencyUnitPrice) : null;
+      const internalCurrencyAdjustedPrice = svc.internalCurrencyAdjustedPrice != null ? parseFloat(svc.internalCurrencyAdjustedPrice) : null;
+      return {
+        serviceName: svc.serviceName || svc.name || null,
+        periodType: svc.periodType || svc.billingCycle || null,
+        unitPrice,
+        adjustedPrice,
+        adjustedUnitPrice,
+        units: units != null ? units : 1,
+        extendedPrice,
+        allocationCodeID: svc.allocationCodeID != null ? svc.allocationCodeID : (svc.allocationCodeId != null ? svc.allocationCodeId : null),
+        internalCurrencyUnitPrice,
+        internalCurrencyAdjustedPrice,
+        description: svc.description || svc.internalDescription || null,
+        raw: svc
+      };
+    });
 
     console.log(`[getContractServices] Found ${result.length} services for contract ID: ${contractId}`);
+
+    if (options.logRaw && items.length > 0) {
+      console.log('[getContractServices] --- RAW ContractServices API response (all fields) ---');
+      items.forEach((svc, idx) => {
+        console.log(`[getContractServices] Service ${idx + 1}/${items.length}:`, JSON.stringify(svc, null, 2));
+      });
+      console.log('[getContractServices] --- END RAW ---');
+    }
+
     return result;
   } catch (error) {
     console.error(`[getContractServices] Error fetching services for contract ID ${contractId}:`,
@@ -356,9 +414,96 @@ async function getMonthlyTimeEntries(contractId, year, month) {
   }
 }
 
+/**
+ * Get ContractServiceUnits for a contract for a specific period (as-of date).
+ * This returns the units whose startDate <= asOfDate <= endDate and sums their price.
+ * This matches the \"Extended Price\" per service and the \"Estimated Monthly Price\" total in the UI.
+ *
+ * @param {number} contractId - Autotask contract ID
+ * @param {Date} [asOfDate=new Date()] - Date that must fall within the unit period
+ * @returns {Promise<{ services: Array, totalMonthlyRevenue: number }>}
+ */
+async function getContractServiceUnits(contractId, asOfDate = new Date()) {
+  try {
+    const search = {
+      filter: [
+        { op: 'eq', field: 'contractID', value: contractId }
+      ]
+    };
+
+    const params = { search: JSON.stringify(search) };
+    const response = await autotaskAPI.get('/ContractServiceUnits/query', { params });
+    const units = response.data.items || [];
+
+    const asOf = new Date(asOfDate);
+
+    const currentPeriodUnits = units.filter((unit) => {
+      if (!unit.startDate || !unit.endDate) return false;
+      const start = new Date(unit.startDate);
+      const end = new Date(unit.endDate);
+      return asOf >= start && asOf <= end;
+    });
+
+    const totalMonthlyRevenue = currentPeriodUnits.reduce((sum, unit) => {
+      const p = unit.price != null ? parseFloat(unit.price) : 0;
+      return sum + p;
+    }, 0);
+
+    return {
+      services: currentPeriodUnits,
+      totalMonthlyRevenue: Math.round(totalMonthlyRevenue * 100) / 100
+    };
+  } catch (error) {
+    console.error(`[getContractServiceUnits] Error for contract ID ${contractId}:`, error.response?.data || error.message);
+    throw error;
+  }
+}
+
+/**
+ * Get discount contract for a company (contract name containing "DISCOUNT").
+ * Used for Block Hours effective hourly rate: (hours × rate - discount) / hours.
+ * @param {number} companyId - Autotask company ID
+ * @returns {Promise<{ discountContractId?: number, discountAmount: number }>}
+ */
+async function getDiscountContract(companyId) {
+  try {
+    const search = {
+      filter: [
+        { op: 'eq', field: 'companyID', value: companyId }
+      ]
+    };
+
+    const response = await autotaskAPI.get('/Contracts/query', {
+      params: { search: JSON.stringify(search) }
+    });
+
+    const contracts = response.data.items || [];
+    const discountContract = contracts.find(
+      (c) => c.contractName && c.contractName.toUpperCase().includes('DISCOUNT') && c.status === 1
+    );
+
+    if (!discountContract) {
+      return { discountAmount: 0 };
+    }
+
+    const unitsResult = await getContractServiceUnits(discountContract.id, new Date());
+    const discountAmount = Math.abs(unitsResult.totalMonthlyRevenue || 0);
+
+    return {
+      discountContractId: discountContract.id,
+      discountAmount: Math.round(discountAmount * 100) / 100
+    };
+  } catch (error) {
+    console.error(`[getDiscountContract] Error for company ${companyId}:`, error.message);
+    return { discountAmount: 0 };
+  }
+}
+
 module.exports = {
   getClientContract,
   getContractBlocks,
   getContractServices,
-  getMonthlyTimeEntries
+  getContractServiceUnits,
+  getMonthlyTimeEntries,
+  getDiscountContract
 };

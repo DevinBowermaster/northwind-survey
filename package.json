@@ -4,7 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:unlimited": "node test-unlimited-calculation.js",
+    "test:amounts": "node test-unlimited-amounts.js",
+    "test:united-way": "node test-united-way-services.js",
+    "sync:contracts": "node backend/sync-contract-health.js"
   },
   "keywords": [],
   "author": "",

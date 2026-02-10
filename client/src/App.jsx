@@ -407,8 +407,13 @@ function App() {
   };
 
   const syncContractHealth = async () => {
-    if (!confirm('Sync Contract Health from Autotask? This may take a while.')) return;
+    if (!confirm('Sync Contract Health from Autotask? This runs in the background and may take a few minutes.')) return;
     
+    if (!userEmail) {
+      alert('❌ You must be logged in to run sync. Sign in and try again.');
+      return;
+    }
+
     try {
       setSyncing(true);
       const response = await fetch(`${API_URL}/api/admin/sync-contract-health`, {
@@ -417,21 +422,34 @@ function App() {
         body: JSON.stringify({ userEmail, userName })
       });
       
+      if (response.status === 401) {
+        alert('❌ Not authenticated. Please log in and try again.');
+        return;
+      }
       if (response.status === 403) {
         alert('❌ Admin access required');
         return;
       }
-      
-      const result = await response.json();
+
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseErr) {
+        console.error('Sync response was not JSON:', parseErr);
+        alert(`❌ Server returned an error (status ${response.status}). Check that the backend is running and CORS is allowed.`);
+        return;
+      }
+
       if (result.success) {
-        alert('✅ Contract Health sync completed.\n\nYou can now refresh the Contract Health tab to see updated data.');
+        alert(result.message || 'Sync started. Refresh the Contract Health tab in 2–3 minutes.');
         fetchContractHealth();
       } else {
-        alert(`❌ Contract Health sync failed: ${result.error || 'Unknown error'}`);
+        alert(`❌ Contract Health sync failed: ${result.error || result.message || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error syncing contract health:', error);
-      alert('❌ Failed to sync Contract Health');
+      const msg = error?.message || String(error);
+      alert(`❌ Could not start sync: ${msg}\n\nIf the sync already ran on the server, refresh the Contract Health tab to see updated amounts.`);
     } finally {
       setSyncing(false);
     }
@@ -1762,12 +1780,17 @@ function App() {
   const [contractHealthExportRange, setContractHealthExportRange] = useState('3'); // '3' | '6' | 'year'
   const [contractHealthExportYear, setContractHealthExportYear] = useState('');
 
-  const renderContractHealth = () => {
-    const formatRevenue = (v) =>
-      v != null && v !== 0
-        ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v)
-        : 'N/A';
+  const formatRevenue = (v) =>
+    v != null && v !== 0
+      ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v)
+      : 'N/A';
 
+  const formatMonthName = (monthString) => {
+    const [year, month] = monthString.split('-');
+    return new Date(parseInt(year, 10), parseInt(month, 10) - 1).toLocaleString('en-US', { month: 'long' });
+  };
+
+  const renderContractHealth = () => {
     // Sort data
     const sortedData = [...contractHealthData].sort((a, b) => {
       if (contractHealthSortBy === 'name') {
@@ -1918,7 +1941,13 @@ function App() {
                       <div>
                         <span className="text-gray-500">Overage amount: </span>
                         {client.contractType === 'Block Hours' && client.currentMonth?.overageAmount != null && client.currentMonth.overageAmount > 0
-                          ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(client.currentMonth.overageAmount)
+                          ? formatRevenue(client.currentMonth.overageAmount)
+                          : '—'}
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Effective rate: </span>
+                        {client.contractType === 'Block Hours' && client.currentMonth?.effectiveHourlyRate != null
+                          ? `${formatRevenue(client.currentMonth.effectiveHourlyRate)}/hr`
                           : '—'}
                       </div>
                       <div>
@@ -1957,6 +1986,7 @@ function App() {
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Block Hours</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Hrs Billed This Month</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Overage Amount</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Effective Rate</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Unlimited Contract Amount</th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
                       <th className="px-6 py-3 text-center text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
@@ -2027,7 +2057,14 @@ function App() {
                         <td className="px-6 py-4 whitespace-nowrap text-right">
                           <div className="text-sm text-white">
                             {client.contractType === 'Block Hours' && client.currentMonth?.overageAmount != null && client.currentMonth.overageAmount > 0
-                              ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(client.currentMonth.overageAmount)
+                              ? formatRevenue(client.currentMonth.overageAmount)
+                              : '—'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <div className="text-sm text-white">
+                            {client.contractType === 'Block Hours' && client.currentMonth?.effectiveHourlyRate != null
+                              ? `${formatRevenue(client.currentMonth.effectiveHourlyRate)}/hr`
                               : '—'}
                           </div>
                         </td>
@@ -2097,13 +2134,18 @@ function App() {
 
     const exportYear = (year) => {
       if (!client || !monthsByYear[year]) return;
-      const header = ['Month', 'AllocatedHours', 'UsedHours', 'RemainingHours', 'PercentageUsed', 'TotalCost'];
+      const header = ['Month', 'AllocatedHours', 'UsedHours', 'RemainingHours', 'PercentageUsed', 'MonthlyRevenue', 'OverageAmount', 'DiscountAmount', 'EffectiveHourlyRate', 'BlockHourlyRate', 'TotalCost'];
       const rows = monthsByYear[year].map((m) => [
         m.month,
         m.allocated ?? '',
         m.used ?? '',
         m.remaining ?? '',
         m.percentage ?? '',
+        m.monthlyRevenue ?? '',
+        m.overageAmount ?? '',
+        m.discountAmount ?? '',
+        m.effectiveHourlyRate ?? '',
+        m.blockHourlyRate ?? '',
         m.cost ?? '',
       ]);
       const csv = [header.join(','), ...rows.map((r) => r.join(','))].join('\n');
@@ -2141,7 +2183,7 @@ function App() {
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="min-w-0">
-                <h2 className="text-xl sm:text-2xl font-bold text-white mb-1 break-words">{data.client}</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-white mb-1 break-words">{data.clientName || data.client}</h2>
                 <p className="text-gray-400 text-sm sm:text-base">
                   {data.contractType === 'Block Hours'
                     ? `Block Hours — ${data.monthlyHours ?? 'N/A'} hrs / month`
@@ -2149,10 +2191,44 @@ function App() {
                     ? 'Unlimited Support'
                     : 'No contract data'}
                 </p>
+                {data.currentMonth && (() => {
+                  const cm = data.currentMonth;
+                  if (data.contractType === 'Unlimited' && (cm.monthlyRevenue != null || cm.monthlyRevenue === 0)) {
+                    return (
+                      <p className="text-gray-300 text-sm mt-1">
+                        Monthly Contract Amount: {formatRevenue(cm.monthlyRevenue)}
+                      </p>
+                    );
+                  }
+                  if (data.contractType === 'Block Hours') {
+                    const discountAmount = cm.discountAmount != null ? Number(cm.discountAmount) : 0;
+                    const blockRate = cm.blockHourlyRate != null ? Number(cm.blockHourlyRate) : null;
+                    const effectiveRate = cm.effectiveHourlyRate != null ? Number(cm.effectiveHourlyRate) : null;
+                    return (
+                      <div className="text-gray-300 text-sm mt-1 space-y-0.5">
+                        {blockRate != null && (
+                          <p>Hourly Rate: {formatRevenue(blockRate)}/hr</p>
+                        )}
+                        {discountAmount > 0 && (
+                          <>
+                            <p>Discount: -{formatRevenue(discountAmount)}</p>
+                            {effectiveRate != null && (
+                              <p className="font-semibold">Effective Rate: {formatRevenue(effectiveRate)}/hr</p>
+                            )}
+                          </>
+                        )}
+                        {cm.overageAmount != null && Number(cm.overageAmount) > 0 && (
+                          <p>Overage Amount: {formatRevenue(cm.overageAmount)}</p>
+                        )}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             </div>
 
-            {Object.keys(monthsByYear).length === 0 ? (
+            {!data.months?.length ? (
               <div className="bg-gray-800 rounded-lg p-8 border border-gray-700 text-center">
                 <p className="text-gray-400">No historical contract usage recorded for this client yet.</p>
               </div>
@@ -2162,7 +2238,7 @@ function App() {
                   .sort((a, b) => (a < b ? 1 : -1))
                   .map((year) => (
                     <div key={year} className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
-                      <details open>
+                      <details open={year === new Date().getFullYear().toString()}>
                         <summary className="cursor-pointer select-none px-4 py-3 min-h-[44px] bg-gray-900 flex items-center justify-between gap-2 touch-manipulation">
                           <span className="text-lg font-semibold text-white">{year}</span>
                           <span className="text-gray-400 text-xs sm:text-sm shrink-0">Tap to expand/collapse</span>
@@ -2178,8 +2254,7 @@ function App() {
                                     .filter((v) => v !== null && v !== undefined);
                             let avgPct = null;
                             if (pctValues.length > 0) {
-                              avgPct =
-                                pctValues.reduce((sum, v) => sum + v, 0) / pctValues.length;
+                              avgPct = pctValues.reduce((sum, v) => sum + v, 0) / pctValues.length;
                             }
                             return avgPct !== null ? (
                               <div className="mb-3 flex items-center justify-between">
@@ -2187,15 +2262,13 @@ function App() {
                                   <span className="font-semibold">Average % Used ({year}): </span>
                                   <span className="font-bold">{Math.round(avgPct)}%</span>
                                 </div>
-                                <div className="flex items-center gap-3">
-                                  <button
-                                    type="button"
-                                    onClick={() => exportYear(year)}
-                                    className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white"
-                                  >
-                                    ⬇ Export {year}
-                                  </button>
-                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => exportYear(year)}
+                                  className="text-xs px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-white"
+                                >
+                                  ⬇ Export {year}
+                                </button>
                               </div>
                             ) : (
                               <div className="mb-3 flex items-center justify-end">
@@ -2210,52 +2283,65 @@ function App() {
                             );
                           })()}
                           <div className="overflow-x-auto -mx-2 sm:mx-0">
-                          <table className="w-full text-sm min-w-[320px]">
-                            <thead>
-                              <tr className="border-b border-gray-700">
-                                <th className="text-left py-2 px-2 text-gray-400 text-xs sm:text-sm">Month</th>
-                                <th className="text-right py-2 px-1 text-gray-400 text-xs sm:text-sm">Alloc.</th>
-                                <th className="text-right py-2 px-1 text-gray-400 text-xs sm:text-sm">Used</th>
-                                <th className="text-right py-2 px-1 text-gray-400 text-xs sm:text-sm">Remain</th>
-                                <th className="text-right py-2 px-1 text-gray-400 text-xs sm:text-sm">%</th>
-                                <th className="text-right py-2 px-2 text-gray-400 text-xs sm:text-sm">Charges</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {monthsByYear[year].map((m) => {
-                                const [y, monthNum] = m.month.split('-');
-                                const date = new Date(parseInt(y, 10), parseInt(monthNum, 10) - 1);
-                                const monthLabel = date.toLocaleDateString('en-US', {
-                                  month: 'long',
-                                  year: 'numeric',
-                                });
-                                const pct = m.percentage ?? null;
-                                let pctClass = 'text-green-400';
-                                if (pct !== null) {
-                                  if (pct >= 91) pctClass = 'text-red-400';
-                                  else if (pct >= 71) pctClass = 'text-yellow-400';
-                                }
-                                return (
-                                  <tr key={m.month} className="border-b border-gray-800">
-                                    <td className="py-2 px-2 text-white text-xs sm:text-sm">{monthLabel}</td>
-                                    <td className="py-2 px-1 text-right text-white text-xs sm:text-sm">
-                                      {data.contractType === 'Unlimited' ? 'N/A' : m.allocated ?? '—'}
-                                    </td>
-                                    <td className="py-2 px-1 text-right text-white text-xs sm:text-sm">{m.used ?? 0}</td>
-                                    <td className="py-2 px-1 text-right text-white text-xs sm:text-sm">
-                                      {data.contractType === 'Unlimited' ? 'N/A' : m.remaining ?? '—'}
-                                    </td>
-                                    <td className={`py-2 px-1 text-right font-medium text-xs sm:text-sm ${pctClass}`}>
-                                      {data.contractType === 'Unlimited' || pct === null ? 'N/A' : `${pct}%`}
-                                    </td>
-                                    <td className="py-2 px-2 text-right text-white text-xs sm:text-sm">
-                                      {m.cost ? `$${m.cost.toFixed(2)}` : '$0.00'}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
+                            <table className="w-full text-sm min-w-[320px]">
+                              <thead>
+                                <tr className="border-b border-gray-700">
+                                  <th className="text-left py-2 px-2 text-gray-400 text-xs sm:text-sm">Month</th>
+                                  <th className="text-right py-2 px-1 text-gray-400 text-xs sm:text-sm">Alloc.</th>
+                                  <th className="text-right py-2 px-1 text-gray-400 text-xs sm:text-sm">Used</th>
+                                  <th className="text-right py-2 px-1 text-gray-400 text-xs sm:text-sm">Remain</th>
+                                  <th className="text-right py-2 px-1 text-gray-400 text-xs sm:text-sm">%</th>
+                                  <th className="text-right py-2 px-1 text-gray-400 text-xs sm:text-sm">Monthly Rev.</th>
+                                  <th className="text-right py-2 px-1 text-gray-400 text-xs sm:text-sm">Overage</th>
+                                  <th className="text-right py-2 px-1 text-gray-400 text-xs sm:text-sm">Eff. Rate</th>
+                                  <th className="text-right py-2 px-2 text-gray-400 text-xs sm:text-sm">Charges</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {monthsByYear[year].map((m) => {
+                                  const [yr, monthNum] = m.month.split('-');
+                                  const d = new Date(parseInt(yr, 10), parseInt(monthNum, 10) - 1);
+                                  const monthLabel = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                                  const pct = m.percentage ?? null;
+                                  let pctClass = 'text-green-400';
+                                  if (pct !== null) {
+                                    if (pct >= 91) pctClass = 'text-red-400';
+                                    else if (pct >= 71) pctClass = 'text-yellow-400';
+                                  }
+                                  return (
+                                    <tr key={m.month} className="border-b border-gray-800">
+                                      <td className="py-2 px-2 text-white text-xs sm:text-sm">{monthLabel}</td>
+                                      <td className="py-2 px-1 text-right text-white text-xs sm:text-sm">
+                                        {data.contractType === 'Unlimited' ? 'N/A' : m.allocated ?? '—'}
+                                      </td>
+                                      <td className="py-2 px-1 text-right text-white text-xs sm:text-sm">{m.used ?? 0}</td>
+                                      <td className="py-2 px-1 text-right text-white text-xs sm:text-sm">
+                                        {data.contractType === 'Unlimited' ? 'N/A' : m.remaining ?? '—'}
+                                      </td>
+                                      <td className={`py-2 px-1 text-right font-medium text-xs sm:text-sm ${pctClass}`}>
+                                        {data.contractType === 'Unlimited' || pct === null ? 'N/A' : `${pct}%`}
+                                      </td>
+                                      <td className="py-2 px-1 text-right text-white text-xs sm:text-sm">
+                                        {data.contractType === 'Unlimited' ? formatRevenue(m.monthlyRevenue) : '—'}
+                                      </td>
+                                      <td className="py-2 px-1 text-right text-white text-xs sm:text-sm">
+                                        {data.contractType === 'Block Hours' && m.overageAmount != null && Number(m.overageAmount) > 0
+                                          ? formatRevenue(m.overageAmount)
+                                          : '—'}
+                                      </td>
+                                      <td className="py-2 px-1 text-right text-white text-xs sm:text-sm">
+                                        {data.contractType === 'Block Hours' && m.effectiveHourlyRate != null
+                                          ? `${formatRevenue(m.effectiveHourlyRate)}/hr`
+                                          : '—'}
+                                      </td>
+                                      <td className="py-2 px-2 text-right text-white text-xs sm:text-sm">
+                                        {formatRevenue(m.cost)}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
                           </div>
                         </div>
                       </details>

@@ -10,6 +10,7 @@ const { migrateAddArchive } = require('./migrate-add-archive');
 const { migrateContractUsage } = require('./backend/migrate-contract-usage');
 const { migrateAddMonthlyRevenue } = require('./backend/migrate-add-monthly-revenue');
 const { migrateAddOverageAmount } = require('./backend/migrate-add-overage-amount');
+const { migrateContactsCompanyAutotaskId } = require('./backend/migrate-contacts-company-autotask-id');
 const { syncContractUsage } = require('./backend/sync-contract-health');
 
 const app = express();
@@ -73,6 +74,7 @@ try {
   migrateContractUsage();
   migrateAddMonthlyRevenue();
   migrateAddOverageAmount();
+  migrateContactsCompanyAutotaskId();
 } catch (err) {
   console.error('Error running startup migrations:', err);
 }
@@ -103,7 +105,7 @@ app.get('/api/clients', (req, res) => {
     const clients = db.prepare(`
       SELECT 
         c.*,
-        (SELECT COUNT(*) FROM contacts WHERE company_id = c.autotask_id) as contact_count,
+        (SELECT COUNT(*) FROM contacts WHERE company_autotask_id = c.autotask_id) as contact_count,
         CASE 
           WHEN EXISTS (
             SELECT 1 FROM surveys s 
@@ -168,7 +170,7 @@ app.get('/api/clients/:id/contacts', (req, res) => {
     
     const contacts = db.prepare(`
       SELECT * FROM contacts 
-      WHERE company_id = ?
+      WHERE company_autotask_id = ?
       ORDER BY is_primary DESC, last_name, first_name
     `).all(client.autotask_id);
     
@@ -204,7 +206,7 @@ app.post('/api/clients/:id/set-primary-contact', (req, res) => {
       return res.status(404).json({ error: 'Contact not found' });
     }
     
-    if (contact.company_id !== client.autotask_id) {
+    if (contact.company_autotask_id !== client.autotask_id) {
       return res.status(400).json({ error: 'Contact does not belong to this company' });
     }
     
@@ -247,16 +249,35 @@ app.post('/api/clients/:id/set-primary-contact', (req, res) => {
   }
 });
 
-// Manually trigger Contract Health sync (admin only)
-app.post('/api/admin/sync-contract-health', isAdmin, async (req, res) => {
-  try {
-    console.log('🚀 Admin requested Contract Health sync');
-    await syncContractUsage();
-    res.json({ success: true, message: 'Contract Health sync completed. Check logs for details.' });
-  } catch (error) {
-    console.error('Error running Contract Health sync:', error);
-    res.status(500).json({ success: false, error: 'Failed to sync contract health', message: error.message });
+// Contract Health sync: run in background so the request never times out
+let contractHealthSyncInProgress = false;
+
+// Manually trigger Contract Health sync (admin only) - returns immediately, sync runs in background
+app.post('/api/admin/sync-contract-health', isAdmin, (req, res) => {
+  if (contractHealthSyncInProgress) {
+    return res.status(200).json({
+      success: true,
+      started: false,
+      message: 'A sync is already running. Refresh the Contract Health tab in a few minutes.'
+    });
   }
+  contractHealthSyncInProgress = true;
+  console.log('🚀 Admin requested Contract Health sync (running in background)');
+  res.status(202).json({
+    success: true,
+    started: true,
+    message: 'Sync started. This may take a few minutes. Refresh the Contract Health tab in 2–3 minutes to see updated data.'
+  });
+  syncContractUsage(db)
+    .then((result) => {
+      const summary = result || { successCount: 0, errorCount: 0, errors: [] };
+      console.log(`✅ Contract Health sync finished: ${summary.successCount} synced, ${summary.errorCount} errors`);
+      if (summary.errors?.length) {
+        summary.errors.forEach((e) => console.log(`   - ${e.client}: ${e.error}`));
+      }
+    })
+    .catch((err) => console.error('Contract Health sync failed:', err))
+    .finally(() => { contractHealthSyncInProgress = false; });
 });
 
 // Get a specific client by ID - MUST BE AFTER MORE SPECIFIC ROUTES

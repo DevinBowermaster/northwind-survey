@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../../database');
+const { getLastThreeMonths } = require('../../backend/sync-contract-health');
 
 /**
  * Contract Usage API Routes
@@ -21,6 +22,9 @@ const db = require('../../database');
  * - total_cost (REAL)
  * - monthly_revenue (REAL) - Unlimited estimated monthly revenue only
  * - overage_amount (REAL) - Block Hours overage charge when hours_used > monthly_hours
+ * - discount_amount (REAL) - Block Hours discount from DISCOUNT contract
+ * - effective_hourly_rate (REAL) - Block Hours rate after discount
+ * - block_hourly_rate (REAL) - Block Hours contract hourly rate
  * - synced_at (TEXT)
  */
 
@@ -52,7 +56,7 @@ router.get('/contract-usage', (req, res) => {
       return res.status(404).json({ error: 'Client not found' });
     }
     
-    // Get contract usage data for this client (all recorded months, newest first)
+    // Get contract usage data for this client (last 3 months, newest first)
     const usageData = db.prepare(`
       SELECT 
         client_name,
@@ -64,19 +68,26 @@ router.get('/contract-usage', (req, res) => {
         percentage_used,
         total_cost,
         monthly_revenue,
-        overage_amount
+        overage_amount,
+        discount_amount,
+        effective_hourly_rate,
+        block_hourly_rate
       FROM contract_usage
       WHERE client_id = ?
       ORDER BY month DESC
+      LIMIT 3
     `).all(clientId);
     
     if (usageData.length === 0) {
       // No usage data found, return basic client info
       return res.json({
+        clientId: client.id,
+        clientName: client.name,
         client: client.name,
         contractType: null,
         monthlyHours: null,
         monthlyRevenue: null,
+        currentMonth: null,
         months: []
       });
     }
@@ -87,11 +98,28 @@ router.get('/contract-usage', (req, res) => {
     const monthlyHours = firstRecord.monthly_hours != null ? Number(firstRecord.monthly_hours) : null;
     const monthlyRevenue = firstRecord.monthly_revenue != null ? Number(firstRecord.monthly_revenue) : null;
     
+    // Current month (latest) object for detail view
+    const currentMonth = {
+      month: firstRecord.month,
+      allocated: firstRecord.monthly_hours != null ? Number(firstRecord.monthly_hours) : null,
+      used: firstRecord.hours_used != null ? Number(firstRecord.hours_used) : 0,
+      remaining: firstRecord.hours_remaining !== null ? Number(firstRecord.hours_remaining) : null,
+      percentage: firstRecord.percentage_used !== null ? Math.round(Number(firstRecord.percentage_used)) : null,
+      overageAmount: firstRecord.overage_amount != null ? Number(firstRecord.overage_amount) : null,
+      monthlyRevenue: firstRecord.monthly_revenue != null ? Number(firstRecord.monthly_revenue) : null,
+      discountAmount: firstRecord.discount_amount != null ? Number(firstRecord.discount_amount) : null,
+      effectiveHourlyRate: firstRecord.effective_hourly_rate != null ? Number(firstRecord.effective_hourly_rate) : null,
+      blockHourlyRate: firstRecord.block_hourly_rate != null ? Number(firstRecord.block_hourly_rate) : null
+    };
+    
     // Format months array
     const months = usageData.map(record => {
       const revenue = record.monthly_revenue != null ? Number(record.monthly_revenue) : null;
       const overageAmount = record.overage_amount != null ? Number(record.overage_amount) : null;
-      // For Unlimited contracts, return null for allocated, remaining, percentage, overage
+      const discountAmount = record.discount_amount != null ? Number(record.discount_amount) : null;
+      const effectiveHourlyRate = record.effective_hourly_rate != null ? Number(record.effective_hourly_rate) : null;
+      const blockHourlyRate = record.block_hourly_rate != null ? Number(record.block_hourly_rate) : null;
+      // For Unlimited contracts, return null for block-specific fields
       if (contractType === 'Unlimited') {
         return {
           month: record.month,
@@ -101,11 +129,13 @@ router.get('/contract-usage', (req, res) => {
           percentage: null,
           cost: record.total_cost || 0,
           monthlyRevenue: revenue,
-          overageAmount: null
+          overageAmount: null,
+          discountAmount: null,
+          effectiveHourlyRate: null,
+          blockHourlyRate: null
         };
       }
-      
-      // For Block Hours contracts, return all values including overage when present
+      // For Block Hours contracts, return all values including discount and rates
       return {
         month: record.month,
         allocated: record.monthly_hours || null,
@@ -114,16 +144,22 @@ router.get('/contract-usage', (req, res) => {
         percentage: record.percentage_used !== null ? Math.round(record.percentage_used) : null,
         cost: record.total_cost || 0,
         monthlyRevenue: null,
-        overageAmount: overageAmount
+        overageAmount: overageAmount,
+        discountAmount: discountAmount,
+        effectiveHourlyRate: effectiveHourlyRate,
+        blockHourlyRate: blockHourlyRate
       };
     });
     
     // Return formatted response
     res.json({
+      clientId: client.id,
+      clientName: firstRecord.client_name || client.name,
       client: client.name,
       contractType: contractType,
       monthlyHours: monthlyHours,
       monthlyRevenue: monthlyRevenue,
+      currentMonth: currentMonth,
       months: months
     });
     
@@ -141,9 +177,9 @@ router.get('/contract-usage', (req, res) => {
  */
 router.get('/contract-usage/all', (req, res) => {
   try {
-    // Get current month in YYYY-MM format (2026-01)
-    const now = new Date();
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    // Use same "current month" as sync (first of last three months) so we always read the month we wrote
+    const months = getLastThreeMonths();
+    const currentMonth = months[0];
     
     // Get all managed clients with their current month contract usage
     const clients = db.prepare(`
@@ -158,7 +194,10 @@ router.get('/contract-usage/all', (req, res) => {
         cu.percentage_used,
         cu.total_cost,
         cu.monthly_revenue as monthly_revenue,
-        cu.overage_amount as overage_amount
+        cu.overage_amount as overage_amount,
+        cu.discount_amount as discount_amount,
+        cu.effective_hourly_rate as effective_hourly_rate,
+        cu.block_hourly_rate as block_hourly_rate
       FROM clients c
       LEFT JOIN contract_usage cu ON c.id = cu.client_id AND cu.month = ?
       WHERE c.company_type = 'managed' AND c.autotask_id IS NOT NULL
@@ -185,7 +224,10 @@ router.get('/contract-usage/all', (req, res) => {
             remaining: isUnlimited ? null : (client.hours_remaining !== null ? Number(client.hours_remaining) : null),
             percentage: isUnlimited ? null : (client.percentage_used !== null ? Math.round(Number(client.percentage_used)) : null),
             cost: client.total_cost != null ? Number(client.total_cost) : 0,
-            overageAmount: isUnlimited ? null : (client.overage_amount != null ? Number(client.overage_amount) : null)
+            overageAmount: isUnlimited ? null : (client.overage_amount != null ? Number(client.overage_amount) : null),
+            discountAmount: isUnlimited ? null : (client.discount_amount != null ? Number(client.discount_amount) : null),
+            effectiveHourlyRate: isUnlimited ? null : (client.effective_hourly_rate != null ? Number(client.effective_hourly_rate) : null),
+            blockHourlyRate: isUnlimited ? null : (client.block_hourly_rate != null ? Number(client.block_hourly_rate) : null)
           }
         };
       });

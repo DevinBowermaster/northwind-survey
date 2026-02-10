@@ -6,12 +6,12 @@ const managedClientsQuery = db.prepare(`
   SELECT c.id, c.autotask_id, c.name, c.contact_person, c.email
   FROM clients c
   WHERE c.company_type = 'managed'
-  AND EXISTS (SELECT 1 FROM contacts WHERE company_id = c.autotask_id)
+  AND EXISTS (SELECT 1 FROM contacts WHERE company_autotask_id = c.autotask_id)
   LIMIT 50
 `);
 
 const managedClients = managedClientsQuery.all().map(client => {
-  const contactCount = db.prepare('SELECT COUNT(*) as count FROM contacts WHERE company_id = ?').get(client.autotask_id);
+  const contactCount = db.prepare('SELECT COUNT(*) as count FROM contacts WHERE company_autotask_id = ?').get(client.autotask_id);
   return { ...client, contact_count: contactCount.count };
 }).sort((a, b) => b.contact_count - a.contact_count);
 

@@ -1,15 +1,19 @@
 require('dotenv').config();
 const Database = require('better-sqlite3');
 const path = require('path');
-const { getClientContract, getContractServices, getMonthlyTimeEntries } = require('../autotask-contracts');
+const { getClientContract, getContractServiceUnits, getMonthlyTimeEntries, getDiscountContract } = require('../autotask-contracts');
 
-// Use persistent disk path in production, local file in development
-const dbPath = process.env.NODE_ENV === 'production' 
+// Default db for CLI usage (node backend/sync-contract-health.js). When called from server, pass server's db so we write to the same DB the API reads.
+const defaultDbPath = process.env.NODE_ENV === 'production'
   ? '/opt/render/project/src/data/northwind.db'
   : path.join(__dirname, '..', 'northwind.db');
+let defaultDb = null;
 
-// Create/open database file
-const db = new Database(dbPath);
+function getDb(overrideDb) {
+  if (overrideDb) return overrideDb;
+  if (!defaultDb) defaultDb = new Database(defaultDbPath);
+  return defaultDb;
+}
 
 /**
  * Get the last three months in YYYY-MM format
@@ -30,9 +34,11 @@ function getLastThreeMonths() {
 }
 
 /**
- * Sync contract usage data from Autotask for all managed clients
+ * Sync contract usage data from Autotask for all managed clients.
+ * @param {import('better-sqlite3').Database} [dbOverride] - When provided (e.g. from server), use this DB so API and sync use the same database.
  */
-async function syncContractUsage() {
+async function syncContractUsage(dbOverride) {
+  const db = getDb(dbOverride);
   console.log('🔄 Starting Contract Usage Sync...\n');
   
   const lastThreeMonths = getLastThreeMonths();
@@ -48,12 +54,12 @@ async function syncContractUsage() {
   
   if (clients.length === 0) {
     console.log('⚠️  No managed clients found in database');
-    return;
+    return { successCount: 0, errorCount: 0, errors: [] };
   }
   
   console.log(`📊 Found ${clients.length} managed clients to sync\n`);
   
-  // Prepare INSERT OR UPDATE statement
+  // Prepare INSERT OR UPDATE statement (discount_amount, effective_hourly_rate, block_hourly_rate for Block Hours)
   const insertOrUpdate = db.prepare(`
     INSERT INTO contract_usage (
       client_id,
@@ -69,8 +75,11 @@ async function syncContractUsage() {
       total_cost,
       monthly_revenue,
       overage_amount,
+      discount_amount,
+      effective_hourly_rate,
+      block_hourly_rate,
       synced_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(client_id, month) DO UPDATE SET
       client_name = excluded.client_name,
       autotask_company_id = excluded.autotask_company_id,
@@ -83,6 +92,9 @@ async function syncContractUsage() {
       total_cost = excluded.total_cost,
       monthly_revenue = excluded.monthly_revenue,
       overage_amount = excluded.overage_amount,
+      discount_amount = excluded.discount_amount,
+      effective_hourly_rate = excluded.effective_hourly_rate,
+      block_hourly_rate = excluded.block_hourly_rate,
       synced_at = CURRENT_TIMESTAMP
   `);
   
@@ -111,25 +123,33 @@ async function syncContractUsage() {
         continue;
       }
 
-      // Unlimited contract amount: sum of all contract services (ContractServices entity has no periodType in REST response).
-      // Use adjustedPrice when present, else unitPrice.
-      let monthlyRevenue = null;
-      try {
-        if (contract.displayType === 'Unlimited') {
-          const services = await getContractServices(contract.id);
-          const monthlyTotal = services.reduce((sum, s) => {
-            const price = s.adjustedPrice != null ? s.adjustedPrice : (s.unitPrice || 0);
-            return sum + price;
-          }, 0);
-          monthlyRevenue = monthlyTotal > 0 ? Math.round(monthlyTotal * 100) / 100 : null;
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      } catch (revenueError) {
-        console.warn(`\n     ⚠️  Unlimited contract amount skipped for ${client.name}: ${revenueError.message}`);
-        monthlyRevenue = null;
+      // SKIP clients that only have SaaS unlimited contracts (no managed service)
+      if (contract.displayType === 'Unlimited' &&
+          contract.contractCategory === 16 &&
+          contract.contractType === 7) {
+        console.log(`   ⚠️  Skipping SaaS-only client: ${client.name} (no managed service contract)`);
+        continue;
       }
 
-      // Block hourly rate (for overage_amount only): current or most recent block
+      // Unlimited: display as Unlimited, but some (category 12 Type 4) bill like Block Hours.
+      // If monthlyAllocation + blockHourlyRate are set, use that (e.g. COLLIERS/WESTWATER).
+      // Otherwise, use ContractServiceUnits to match Autotask's Estimated Monthly Price.
+      let monthlyRevenue = null;
+      if (contract.displayType === 'Unlimited') {
+        if (contract.monthlyAllocation && contract.blockHourlyRate) {
+          monthlyRevenue = Math.round(contract.monthlyAllocation * contract.blockHourlyRate * 100) / 100;
+        } else {
+          try {
+            const unitsResult = await getContractServiceUnits(contract.id, new Date());
+            monthlyRevenue = unitsResult.totalMonthlyRevenue > 0 ? unitsResult.totalMonthlyRevenue : null;
+            await new Promise((r) => setTimeout(r, 100));
+          } catch (err) {
+            console.warn(`\n     ⚠️  Unlimited amount skipped for ${client.name}: ${err.message}`);
+          }
+        }
+      }
+
+      // Block hourly rate (for overage_amount and effective rate): current or most recent block
       let blockHourlyRate = null;
       if (contract.displayType === 'Block Hours' && contract.blocks && contract.blocks.length > 0) {
         const today = new Date();
@@ -143,6 +163,19 @@ async function syncContractUsage() {
         });
         const block = currentBlock || contract.blocks[0];
         blockHourlyRate = block.hourlyRate != null && block.hourlyRate > 0 ? block.hourlyRate : null;
+      }
+
+      // Discount and effective hourly rate (Block Hours only)
+      let discountAmount = 0;
+      let effectiveHourlyRate = null;
+      if (contract.displayType === 'Block Hours' && contract.monthlyAllocation && blockHourlyRate != null) {
+        const discountInfo = await getDiscountContract(client.autotask_id);
+        discountAmount = discountInfo.discountAmount || 0;
+        effectiveHourlyRate = blockHourlyRate;
+        if (contract.monthlyAllocation > 0 && discountAmount > 0) {
+          effectiveHourlyRate = blockHourlyRate - (discountAmount / contract.monthlyAllocation);
+          effectiveHourlyRate = Math.round(effectiveHourlyRate * 100) / 100;
+        }
       }
       
       // Process each month
@@ -192,7 +225,10 @@ async function syncContractUsage() {
             percentageUsed,
             totalCost,
             monthlyRevenue,
-            overageAmount
+            overageAmount,
+            contract.displayType === 'Block Hours' ? discountAmount : 0,
+            contract.displayType === 'Block Hours' ? effectiveHourlyRate : null,
+            contract.displayType === 'Block Hours' ? blockHourlyRate : null
           );
           
           monthSuccess++;
@@ -250,9 +286,11 @@ async function syncContractUsage() {
   
   console.log('='.repeat(80));
   console.log('\n✅ Contract usage sync completed\n');
+
+  return { successCount, errorCount, errors };
 }
 
-// Run the sync if called directly
+// Run the sync if called directly (CLI: no override, use default db)
 if (require.main === module) {
   syncContractUsage()
     .catch(error => {
@@ -260,7 +298,7 @@ if (require.main === module) {
       process.exit(1);
     })
     .finally(() => {
-      db.close();
+      if (defaultDb) defaultDb.close();
       console.log('🔒 Database connection closed');
     });
 }

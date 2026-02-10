@@ -5,7 +5,7 @@ const client = db.prepare('SELECT * FROM clients WHERE name LIKE ?').get('%west%
 console.log('West Water client:', client);
 
 if (client) {
-  const contacts = db.prepare('SELECT * FROM contacts WHERE company_id = ?').all(client.autotask_id);
+  const contacts = db.prepare('SELECT * FROM contacts WHERE company_autotask_id = ?').all(client.autotask_id);
   console.log('\nContacts for West Water:');
   console.log('Count:', contacts.length);
   contacts.forEach(c => {

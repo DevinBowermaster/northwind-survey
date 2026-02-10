@@ -35,7 +35,7 @@ async function syncContactsFromAutotask() {
     
     const insertStmt = db.prepare(`
       INSERT OR REPLACE INTO contacts (
-        autotask_id, company_id, first_name, last_name, 
+        autotask_id, company_autotask_id, first_name, last_name, 
         email, phone, title, is_primary, is_active
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
@@ -69,7 +69,7 @@ async function syncContactsFromAutotask() {
       WHERE c.email IS NULL
       AND EXISTS (
         SELECT 1 FROM contacts 
-        WHERE company_id = c.autotask_id 
+        WHERE company_autotask_id = c.autotask_id 
         AND email IS NOT NULL
       )
     `).all();
@@ -79,7 +79,7 @@ async function syncContactsFromAutotask() {
     for (const company of companiesWithoutPrimary) {
       const primaryContact = db.prepare(`
         SELECT * FROM contacts 
-        WHERE company_id = ? 
+        WHERE company_autotask_id = ? 
         AND email IS NOT NULL
         ORDER BY is_primary DESC, id ASC
         LIMIT 1
@@ -106,7 +106,7 @@ async function syncContactsFromAutotask() {
     
     const stats = db.prepare(`
       SELECT 
-        COUNT(DISTINCT company_id) as companies_with_contacts
+        COUNT(DISTINCT company_autotask_id) as companies_with_contacts
       FROM contacts
     `).get();
     

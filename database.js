@@ -32,12 +32,12 @@ function initDatabase() {
     )
   `);
 
-  // Create contacts table
+  // Create contacts table (company_autotask_id = Autotask company ID, matches clients.autotask_id)
   db.exec(`
     CREATE TABLE IF NOT EXISTS contacts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       autotask_id INTEGER UNIQUE NOT NULL,
-      company_id INTEGER NOT NULL,
+      company_autotask_id INTEGER NOT NULL,
       first_name TEXT,
       last_name TEXT,
       email TEXT,
@@ -47,7 +47,7 @@ function initDatabase() {
       is_active INTEGER DEFAULT 1,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (company_id) REFERENCES clients (autotask_id)
+      FOREIGN KEY (company_autotask_id) REFERENCES clients (autotask_id)
     )
   `);
 
