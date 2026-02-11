@@ -59,6 +59,9 @@ async function syncContactsFromAutotask() {
     let withEmail = 0;
     let skippedNoClient = 0;
 
+    // Disable FK during bulk insert (production may have different FK target; we still only insert when company exists)
+    db.exec('PRAGMA foreign_keys = OFF');
+    try {
     for (const contact of allContacts) {
       const companyAutotaskId = parseInt(contact.companyID, 10);
       if (Number.isNaN(companyAutotaskId) || contact.companyID == null) {
@@ -109,7 +112,10 @@ async function syncContactsFromAutotask() {
     if (skippedNoClient > 0) {
       console.log(`   ⚠️ Skipped ${skippedNoClient} contacts (no matching company in clients table)`);
     }
-    
+    } finally {
+      db.exec('PRAGMA foreign_keys = ON');
+    }
+
     // Auto-select primary contacts for companies that don't have one
     console.log('🎯 Auto-selecting primary contacts...');
     
