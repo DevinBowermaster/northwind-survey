@@ -45,7 +45,7 @@ async function sendSurveyEmail(clientInfo, surveyType = 'Quarterly', surveyLink)
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
             .header { background: linear-gradient(to right, #1e3a8a, #1d4ed8); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
             .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; background: #2563eb; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 20px 0; }
+            /* Take Survey button uses inline styles below for email client compatibility */
             .footer { text-align: center; color: #6b7280; font-size: 12px; margin-top: 30px; }
           </style>
         </head>
@@ -63,7 +63,7 @@ async function sendSurveyEmail(clientInfo, surveyType = 'Quarterly', surveyLink)
               <p><strong>This survey takes less than 2 minutes to complete.</strong></p>
               
               <p style="text-align: center;">
-                <a href="${surveyUrl}" class="button">Take Survey Now</a>
+                <a href="${surveyUrl}" style="display: inline-block; padding: 14px 32px; background-color: #2563eb; color: #ffffff !important; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; text-align: center; margin: 20px 0;">Take Survey</a>
               </p>
               
               <p>Your responses help us:</p>
