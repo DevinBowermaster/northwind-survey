@@ -161,12 +161,13 @@ function App() {
     });
   };
 
-  const fetchClients = async () => {
+  const fetchClients = async (options = {}) => {
+    const { silent = false } = typeof options === 'boolean' ? { silent: options } : options;
     try {
       if (typeof window !== 'undefined') {
         clientScrollPositionRef.current = window.scrollY || 0;
       }
-      setLoading(true);
+      if (!silent) setLoading(true);
       const response = await fetch(`${API_URL}/api/clients`);
       const data = await response.json();
       setClients(data);
@@ -175,10 +176,10 @@ function App() {
           window.scrollTo(0, clientScrollPositionRef.current || 0);
         });
       }
-      setLoading(false);
+      if (!silent) setLoading(false);
     } catch (err) {
       console.error('Error:', err);
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -508,7 +509,7 @@ function App() {
       if (result.success) {
         alert(`✅ Primary contact set to: ${result.contact.name}`);
         setSelectingContactFor(null);
-        fetchClients();
+        fetchClients({ silent: true });
       } else {
         alert(`❌ Error: ${result.error}`);
       }
@@ -2921,8 +2922,8 @@ function App() {
                                 survey_frequency: days,
                                 next_survey: result.next_survey
                               });
-                              // Refresh client list in background
-                              fetchClients();
+                              // Refresh client list in background without leaving the page
+                              fetchClients({ silent: true });
                             }
                           } catch (error) {
                             alert('❌ Failed to schedule survey');
@@ -2958,7 +2959,7 @@ function App() {
                               survey_frequency: null,
                               next_survey: null
                             });
-                            fetchClients();
+                            fetchClients({ silent: true });
                           }
                         } catch (error) {
                           alert('❌ Failed to clear schedule');
@@ -3013,9 +3014,13 @@ function App() {
                         const result = await response.json();
                         
                         if (result.success) {
+                          const scrollY = typeof window !== 'undefined' ? window.scrollY : 0;
                           alert(`✅ Survey sent to ${selectedClient.email}!`);
                           setSelectedClient(null);
-                          fetchClients();
+                          fetchClients({ silent: true });
+                          if (typeof window !== 'undefined') {
+                            requestAnimationFrame(() => window.scrollTo(0, scrollY));
+                          }
                         } else {
                           alert(`❌ Error: ${result.error}`);
                         }
