@@ -53,6 +53,7 @@ async function syncContactsFromAutotask() {
         `);
 
     const getClientId = db.prepare('SELECT id FROM clients WHERE autotask_id = ?').pluck();
+    const companyExists = db.prepare('SELECT 1 FROM clients WHERE autotask_id = ? LIMIT 1').pluck();
 
     let insertedCount = 0;
     let withEmail = 0;
@@ -61,6 +62,11 @@ async function syncContactsFromAutotask() {
     for (const contact of allContacts) {
       const companyAutotaskId = parseInt(contact.companyID, 10);
       if (Number.isNaN(companyAutotaskId) || contact.companyID == null) {
+        skippedNoClient++;
+        continue;
+      }
+      // FK: company_autotask_id must exist in clients.autotask_id — skip contacts whose company isn't synced yet
+      if (!companyExists.get(companyAutotaskId)) {
         skippedNoClient++;
         continue;
       }
