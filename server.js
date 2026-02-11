@@ -116,6 +116,7 @@ app.get('/api/clients', (req, res) => {
           ELSE 0 
         END as has_pending_survey
       FROM clients c
+      ORDER BY c.name ASC
     `).all();
     
     res.json(clients);
