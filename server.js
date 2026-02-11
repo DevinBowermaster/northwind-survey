@@ -327,6 +327,42 @@ app.get('/api/contacts', (req, res) => {
   }
 });
 
+// Export managed clients primary contact emails as CSV
+app.get('/api/contacts/export', (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT
+        c.name AS "Company Name",
+        c.contact_person AS "Primary Contact",
+        c.email AS "Primary Email",
+        (SELECT co.phone FROM contacts co WHERE co.company_autotask_id = c.autotask_id AND (co.email = c.email OR (c.email IS NULL AND co.is_primary = 1)) LIMIT 1) AS "Primary Phone"
+      FROM clients c
+      WHERE c.company_type = 'managed'
+      ORDER BY c.name
+    `).all();
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'No managed clients found' });
+    }
+
+    const headers = Object.keys(rows[0]).join(',');
+    const csvRows = rows.map((row) =>
+      Object.values(row).map((val) =>
+        `"${String(val ?? '').replace(/"/g, '""')}"`
+      ).join(',')
+    );
+    const csv = [headers, ...csvRows].join('\n');
+
+    const filename = `managed-clients-${new Date().toISOString().split('T')[0]}.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (error) {
+    console.error('Export error:', error);
+    res.status(500).json({ error: 'Failed to export contacts' });
+  }
+});
+
 // Get all survey templates
 app.get('/api/survey-templates', (req, res) => {
   try {

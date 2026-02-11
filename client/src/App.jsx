@@ -365,6 +365,32 @@ function App() {
     }
   };
 
+  const exportContacts = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/contacts/export`);
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Export failed');
+      }
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filename = contentDisposition
+        ? contentDisposition.split('filename=')[1].replace(/"/g, '').trim()
+        : `managed-clients-${new Date().toISOString().split('T')[0]}.csv`;
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert(error.message === 'No managed clients found' ? 'No managed clients to export.' : 'Failed to export contacts. Please try again.');
+    }
+  };
+
   const deleteAllSurveyData = async () => {
     const confirmMessage = '⚠️ WARNING: This will permanently delete ALL survey responses, reset all client scores to 0, and clear last_survey dates.\n\nThis action cannot be undone!\n\nAre you absolutely sure you want to proceed?';
     
@@ -824,6 +850,15 @@ function App() {
                 {syncing ? '⏳ Syncing...' : '👥 Sync Contacts'}
               </button>
             )}
+            <button
+              onClick={exportContacts}
+              className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-lg font-medium transition-colors bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2 touch-manipulation"
+            >
+              <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Export Contacts
+            </button>
             <button 
               onClick={fetchClients}
               className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-lg font-medium transition-colors bg-blue-600 hover:bg-blue-700 touch-manipulation"

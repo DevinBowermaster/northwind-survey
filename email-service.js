@@ -92,7 +92,7 @@ async function sendSurveyEmail(clientInfo, surveyType = 'Quarterly', surveyLink)
     console.log('   Subject:', emailSubject);
 
     const transporter = getTransporter();
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from: `"${fromName}" <${fromEmail}>`,
       to: clientInfo.email,
       subject: emailSubject,
@@ -100,6 +100,7 @@ async function sendSurveyEmail(clientInfo, surveyType = 'Quarterly', surveyLink)
     });
 
     console.log(`✅ Survey email sent to: ${clientInfo.email}`);
+    if (info.messageId) console.log(`   SES Message ID: ${info.messageId}`);
     console.log(`   Survey URL: ${surveyUrl}`);
 
     return {
