@@ -1,52 +1,41 @@
-const { Client } = require('@microsoft/microsoft-graph-client');
-const { ClientSecretCredential } = require('@azure/identity');
-require('isomorphic-fetch');
+require('dotenv').config();
+const nodemailer = require('nodemailer');
 
-// Microsoft Graph Configuration
-const GRAPH_CONFIG = {
-  tenantId: process.env.AZURE_TENANT_ID,
-  clientId: process.env.AZURE_CLIENT_ID,
-  clientSecret: process.env.AZURE_CLIENT_SECRET,
-  senderEmail: process.env.EMAIL_SENDER
-};
-
-// Create authenticated Graph client
-function getGraphClient() {
-  const credential = new ClientSecretCredential(
-    GRAPH_CONFIG.tenantId,
-    GRAPH_CONFIG.clientId,
-    GRAPH_CONFIG.clientSecret
-  );
-
-  const client = Client.initWithMiddleware({
-    authProvider: {
-      getAccessToken: async () => {
-        const token = await credential.getToken('https://graph.microsoft.com/.default');
-        return token.token;
-      }
+// AWS SES SMTP transporter (uses env: SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASSWORD)
+function getTransporter() {
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT, 10) || 587,
+    secure: process.env.SMTP_SECURE === 'true', // true for 465, false for 587 STARTTLS
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASSWORD
+    },
+    tls: {
+      rejectUnauthorized: true
+      // Optional: if you see TLS errors with SES, you can try minVersion: 'TLSv1.2'
     }
   });
-
-  return client;
 }
 
-// Send a survey email
+// Send a survey email via AWS SES SMTP
 async function sendSurveyEmail(clientInfo, surveyType = 'Quarterly', surveyLink) {
   try {
     console.log('📧 Preparing to send email...');
     console.log('   Client:', clientInfo.name);
     console.log('   Email:', clientInfo.email);
     console.log('   Survey Link:', surveyLink);
-    
-    const client = getGraphClient();
-    
-    // Use provided survey link
+
+    const fromEmail = process.env.SMTP_FROM_EMAIL;
+    const fromName = process.env.SMTP_FROM_NAME || 'Northwind MSP';
+    if (!fromEmail || !process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
+      throw new Error('Missing SMTP configuration. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM_EMAIL in .env');
+    }
+
     const surveyUrl = surveyLink;
     const surveyToken = surveyUrl.split('/survey/')[1];
-    
     console.log('   Survey Token:', surveyToken);
-    
-    // Email content
+
     const emailSubject = `${surveyType} Survey - Northwind IT Services`;
     const emailBody = `
       <html>
@@ -98,42 +87,26 @@ async function sendSurveyEmail(clientInfo, surveyType = 'Quarterly', surveyLink)
         </body>
       </html>
     `;
-    
+
     console.log('   Email body length:', emailBody.length);
     console.log('   Subject:', emailSubject);
 
-    // Send email via Microsoft Graph
-    const sendMail = {
-      message: {
-        subject: emailSubject,
-        body: {
-          contentType: 'HTML',
-          content: emailBody
-        },
-        toRecipients: [
-          {
-            emailAddress: {
-              address: clientInfo.email
-            }
-          }
-        ]
-      },
-      saveToSentItems: true
-    };
-
-    await client
-      .api(`/users/${GRAPH_CONFIG.senderEmail}/sendMail`)
-      .post(sendMail);
+    const transporter = getTransporter();
+    await transporter.sendMail({
+      from: `"${fromName}" <${fromEmail}>`,
+      to: clientInfo.email,
+      subject: emailSubject,
+      html: emailBody
+    });
 
     console.log(`✅ Survey email sent to: ${clientInfo.email}`);
     console.log(`   Survey URL: ${surveyUrl}`);
-    
+
     return {
       success: true,
       surveyToken,
       sentTo: clientInfo.email
     };
-
   } catch (error) {
     console.error('❌ Error sending email:', error);
     throw error;
@@ -143,7 +116,7 @@ async function sendSurveyEmail(clientInfo, surveyType = 'Quarterly', surveyLink)
 // Send surveys to all managed clients
 async function sendSurveysToManagedClients(clients) {
   console.log(`📧 Sending surveys to ${clients.length} managed clients...`);
-  
+
   const results = {
     sent: [],
     failed: []
@@ -157,25 +130,21 @@ async function sendSurveysToManagedClients(clients) {
     }
 
     try {
-      // Generate token and survey link for each client
       const crypto = require('crypto');
       const token = crypto.randomBytes(32).toString('hex');
       const frontendUrl = process.env.FRONTEND_URL || 'https://northwind-survey-frontend.onrender.com';
       const surveyLink = `${frontendUrl}/survey/${token}`;
-      
-      // Create survey record in database
+
       const db = require('./database');
       db.prepare(`
         INSERT INTO surveys (client_id, token, survey_type, sent_date)
         VALUES (?, ?, ?, datetime('now'))
       `).run(client.id, token, 'Quarterly');
-      
+
       const result = await sendSurveyEmail(client, 'Quarterly', surveyLink);
       results.sent.push({ client: client.name, email: client.email });
-      
-      // Small delay to avoid rate limits
+
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
     } catch (error) {
       console.error(`❌ Failed to send to ${client.name}:`, error.message);
       results.failed.push({ client: client.name, reason: error.message });
@@ -184,7 +153,7 @@ async function sendSurveysToManagedClients(clients) {
 
   console.log(`\n✅ Sent: ${results.sent.length}`);
   console.log(`❌ Failed: ${results.failed.length}`);
-  
+
   return results;
 }
 
@@ -215,5 +184,6 @@ async function sendTestEmail(toEmail) {
 module.exports = {
   sendSurveyEmail,
   sendSurveysToManagedClients,
-  sendTestEmail
+  sendTestEmail,
+  getTransporter
 };
