@@ -3,9 +3,10 @@ const db = require('./database');
 const emailService = require('./email-service');
 const crypto = require('crypto');
 
-// Run every day at 9:00 AM
+// Run every day at 9:00 AM (Boise time by default)
 const startScheduler = () => {
-  console.log('📅 Survey scheduler started');
+  const TIMEZONE = process.env.SURVEY_TIMEZONE || 'America/Boise';
+  console.log(`📅 Survey scheduler started (time zone: ${TIMEZONE})`);
   
   // Run at 9:00 AM every day
   cron.schedule('0 9 * * *', async () => {
@@ -66,7 +67,7 @@ const startScheduler = () => {
     } catch (error) {
       console.error('❌ Error in scheduled survey check:', error);
     }
-  });
+  }, { timezone: TIMEZONE });
   
   // Also run immediately on startup for testing (optional - comment out in production)
   console.log('💡 Tip: Scheduler will run daily at 9:00 AM');
