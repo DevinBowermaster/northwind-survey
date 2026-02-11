@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useOktaAuth } from '@okta/okta-react';
 import {
   Chart as ChartJS,
@@ -66,6 +66,7 @@ function App() {
   const [expandedContractClients, setExpandedContractClients] = useState(new Set());
   const [contractHealthSortBy, setContractHealthSortBy] = useState('name'); // 'name' or 'usage'
   const RESPONSES_PER_PAGE = 10;
+  const clientScrollPositionRef = useRef(0);
 
   // Admin email list (must match server.js)
   const ADMIN_EMAILS = ['wylie@northwind.us', 'devin@northwind.us'];
@@ -162,10 +163,18 @@ function App() {
 
   const fetchClients = async () => {
     try {
+      if (typeof window !== 'undefined') {
+        clientScrollPositionRef.current = window.scrollY || 0;
+      }
       setLoading(true);
       const response = await fetch(`${API_URL}/api/clients`);
       const data = await response.json();
       setClients(data);
+      if (typeof window !== 'undefined') {
+        window.requestAnimationFrame(() => {
+          window.scrollTo(0, clientScrollPositionRef.current || 0);
+        });
+      }
       setLoading(false);
     } catch (err) {
       console.error('Error:', err);
