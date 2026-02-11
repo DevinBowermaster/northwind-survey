@@ -32,32 +32,76 @@ async function syncContactsFromAutotask() {
     
     console.log(`\n📊 Total contacts fetched: ${allContacts.length}`);
     console.log('💾 Inserting into database...');
-    
-    const insertStmt = db.prepare(`
-      INSERT OR REPLACE INTO contacts (
-        autotask_id, company_autotask_id, first_name, last_name, 
-        email, phone, title, is_primary, is_active
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    
+
+    // Support both schemas: contacts may have company_id (or typo copany_id) NOT NULL (legacy) or only company_autotask_id
+    const contactColumns = db.prepare('PRAGMA table_info(contacts)').all().map((c) => c.name);
+    const companyIdCol = contactColumns.find((c) => c === 'company_id' || c === 'copany_id');
+    const hasCompanyId = !!companyIdCol;
+
+    const insertStmt = hasCompanyId
+      ? db.prepare(`
+          INSERT OR REPLACE INTO contacts (
+            autotask_id, company_autotask_id, ${companyIdCol}, first_name, last_name,
+            email, phone, title, is_primary, is_active
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+      : db.prepare(`
+          INSERT OR REPLACE INTO contacts (
+            autotask_id, company_autotask_id, first_name, last_name,
+            email, phone, title, is_primary, is_active
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+
+    const getClientId = db.prepare('SELECT id FROM clients WHERE autotask_id = ?').pluck();
+
     let insertedCount = 0;
     let withEmail = 0;
-    
+    let skippedNoClient = 0;
+
     for (const contact of allContacts) {
-      insertStmt.run(
-        contact.id,
-        parseInt(contact.companyID),
-        contact.firstName || '',
-        contact.lastName || '',
-        contact.emailAddress || null,
-        contact.phone || null,
-        contact.title || null,
-        contact.isPrimary ? 1 : 0,
-        contact.isActive ? 1 : 0
-      );
-      
+      const companyAutotaskId = parseInt(contact.companyID, 10);
+      if (Number.isNaN(companyAutotaskId) || contact.companyID == null) {
+        skippedNoClient++;
+        continue;
+      }
+      if (hasCompanyId) {
+        const clientId = getClientId.get(companyAutotaskId);
+        if (clientId == null) {
+          skippedNoClient++;
+          continue;
+        }
+        insertStmt.run(
+          contact.id,
+          companyAutotaskId,
+          clientId,
+          contact.firstName || '',
+          contact.lastName || '',
+          contact.emailAddress || null,
+          contact.phone || null,
+          contact.title || null,
+          contact.isPrimary ? 1 : 0,
+          contact.isActive ? 1 : 0
+        );
+      } else {
+        insertStmt.run(
+          contact.id,
+          companyAutotaskId,
+          contact.firstName || '',
+          contact.lastName || '',
+          contact.emailAddress || null,
+          contact.phone || null,
+          contact.title || null,
+          contact.isPrimary ? 1 : 0,
+          contact.isActive ? 1 : 0
+        );
+      }
+
       insertedCount++;
       if (contact.emailAddress) withEmail++;
+    }
+
+    if (skippedNoClient > 0) {
+      console.log(`   ⚠️ Skipped ${skippedNoClient} contacts (no matching company in clients table)`);
     }
     
     // Auto-select primary contacts for companies that don't have one
