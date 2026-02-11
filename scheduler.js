@@ -33,11 +33,12 @@ const startScheduler = () => {
           // Create survey token
           const token = crypto.randomBytes(32).toString('hex');
           
-          // Insert survey record
+          // Insert survey record with UTC ISO timestamp
+          const sentAtIso = new Date().toISOString();
           db.prepare(`
             INSERT INTO surveys (client_id, token, survey_type, sent_date)
-            VALUES (?, ?, ?, datetime('now'))
-          `).run(client.id, token, 'Quarterly');
+            VALUES (?, ?, ?, ?)
+          `).run(client.id, token, 'Quarterly', sentAtIso);
           
           // Send email
           const surveyLink = `http://localhost:5173/survey/${token}`;
@@ -50,10 +51,10 @@ const startScheduler = () => {
           
           db.prepare(`
             UPDATE clients 
-            SET last_survey = datetime('now'),
+            SET last_survey = ?,
                 next_survey = ?
             WHERE id = ?
-          `).run(nextSurvey.toISOString(), client.id);
+          `).run(sentAtIso, nextSurvey.toISOString(), client.id);
           
           console.log(`  ✅ Survey sent to ${client.name}, next survey in ${frequency} days: ${nextSurvey.toISOString().split('T')[0]}`);
           

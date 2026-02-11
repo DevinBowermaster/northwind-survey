@@ -743,8 +743,9 @@ app.post('/api/surveys/:id/resend', async (req, res) => {
     // Resend email
     await emailService.sendSurveyEmail(client, survey.survey_type || 'Quarterly', surveyLink);
     
-    // Update sent_date to current time
-    db.prepare("UPDATE surveys SET sent_date = datetime('now') WHERE id = ?").run(surveyId);
+    // Update sent_date to current time (UTC ISO string)
+    const nowIso = new Date().toISOString();
+    db.prepare("UPDATE surveys SET sent_date = ? WHERE id = ?").run(nowIso, surveyId);
     
     res.json({ 
       success: true, 
@@ -778,10 +779,11 @@ app.post('/api/surveys/send/:clientId', async (req, res) => {
     
     const token = crypto.randomBytes(32).toString('hex');
     
+    const nowIso = new Date().toISOString();
     db.prepare(`
       INSERT INTO surveys (client_id, token, survey_type, sent_date)
-      VALUES (?, ?, ?, datetime('now'))
-    `).run(client.id, token, selectedSurveyType);
+      VALUES (?, ?, ?, ?)
+    `).run(client.id, token, selectedSurveyType, nowIso);
     
     // Use frontend URL from environment or default
     const frontendUrl = process.env.FRONTEND_URL || 'https://northwind-survey-frontend.onrender.com';
@@ -789,7 +791,7 @@ app.post('/api/surveys/send/:clientId', async (req, res) => {
     
     await emailService.sendSurveyEmail(client, selectedSurveyType, surveyLink);
     
-    db.prepare("UPDATE clients SET last_survey = datetime('now') WHERE id = ?").run(client.id);
+    db.prepare("UPDATE clients SET last_survey = ? WHERE id = ?").run(nowIso, client.id);
     
     res.json({ 
       success: true, 

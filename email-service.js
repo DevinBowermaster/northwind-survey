@@ -137,10 +137,11 @@ async function sendSurveysToManagedClients(clients) {
       const surveyLink = `${frontendUrl}/survey/${token}`;
 
       const db = require('./database');
+      const sentAtIso = new Date().toISOString();
       db.prepare(`
         INSERT INTO surveys (client_id, token, survey_type, sent_date)
-        VALUES (?, ?, ?, datetime('now'))
-      `).run(client.id, token, 'Quarterly');
+        VALUES (?, ?, ?, ?)
+      `).run(client.id, token, 'Quarterly', sentAtIso);
 
       const result = await sendSurveyEmail(client, 'Quarterly', surveyLink);
       results.sent.push({ client: client.name, email: client.email });
