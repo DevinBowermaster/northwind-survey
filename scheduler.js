@@ -40,8 +40,10 @@ const startScheduler = () => {
             VALUES (?, ?, ?, ?)
           `).run(client.id, token, 'Quarterly', sentAtIso);
           
-          // Send email
-          const surveyLink = `http://localhost:5173/survey/${token}`;
+          // Survey link must match manual sends (server.js) — never hardcode localhost in production
+          const frontendUrl =
+            process.env.FRONTEND_URL || 'https://northwind-survey-frontend.onrender.com';
+          const surveyLink = `${frontendUrl.replace(/\/$/, '')}/survey/${token}`;
           await emailService.sendSurveyEmail(client, 'Quarterly', surveyLink);
           
           // Update client record - use their survey_frequency (30/60/90) or default to 90
