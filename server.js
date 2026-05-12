@@ -759,6 +759,37 @@ app.post('/api/surveys/:id/resend', async (req, res) => {
   }
 });
 
+// Remove a pending (incomplete) survey from the list — invalidates the link
+app.delete('/api/surveys/:id/pending', (req, res) => {
+  try {
+    const surveyId = req.params.id;
+    const survey = db.prepare('SELECT * FROM surveys WHERE id = ?').get(surveyId);
+
+    if (!survey) {
+      return res.status(404).json({ error: 'Survey not found' });
+    }
+    if (survey.completed_date) {
+      return res.status(400).json({ error: 'Survey is already completed; use archives if you need to hide it.' });
+    }
+
+    const result = db.prepare('DELETE FROM surveys WHERE id = ? AND completed_date IS NULL').run(surveyId);
+    if (result.changes === 0) {
+      return res.status(400).json({ error: 'Survey could not be removed' });
+    }
+
+    const userEmail = req.headers['x-user-email'] || null;
+    const userName = req.headers['x-user-name'] || null;
+    if (userEmail) {
+      logAuditEvent(userEmail, userName, 'pending_survey_cleared', 'survey', surveyId, { token: survey.token }, null);
+    }
+
+    res.json({ success: true, message: 'Pending survey removed. The old link will no longer work.' });
+  } catch (error) {
+    console.error('Error clearing pending survey:', error);
+    res.status(500).json({ error: 'Failed to clear pending survey' });
+  }
+});
+
 // Send survey to a single client
 app.post('/api/surveys/send/:clientId', async (req, res) => {
   try {

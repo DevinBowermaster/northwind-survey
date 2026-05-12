@@ -1300,6 +1300,32 @@ function App() {
       }
     };
 
+    const clearPendingSurvey = async (surveyId, clientName) => {
+      if (!confirm(`Remove this pending survey for ${clientName}? The survey link will stop working.`)) return;
+
+      try {
+        const response = await fetch(`${API_URL}/api/surveys/${surveyId}/pending`, {
+          method: 'DELETE',
+          headers: {
+            ...(userEmail ? { 'X-User-Email': userEmail, 'X-User-Name': userName || userEmail } : {})
+          }
+        });
+        const result = await response.json().catch(() => ({}));
+
+        if (response.ok && result.success) {
+          alert(`✅ ${result.message || 'Pending survey removed.'}`);
+          fetchPendingSurveys();
+          fetchSurveyStatistics();
+          fetchClients();
+        } else {
+          alert(`❌ Error: ${result.error || response.statusText}`);
+        }
+      } catch (error) {
+        alert('❌ Failed to clear pending survey');
+        console.error('Error:', error);
+      }
+    };
+
     return (
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -1351,12 +1377,22 @@ function App() {
                     </span>
                     <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-600 text-white">{survey.survey_type}</span>
                   </div>
-                  <button
-                    onClick={() => resendSurvey(survey.id)}
-                    className="mt-3 w-full min-h-[44px] bg-blue-600 hover:bg-blue-700 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-white touch-manipulation"
-                  >
-                    📧 Resend
-                  </button>
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => resendSurvey(survey.id)}
+                      className="flex-1 min-h-[44px] bg-blue-600 hover:bg-blue-700 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-white touch-manipulation"
+                    >
+                      📧 Resend
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => clearPendingSurvey(survey.id, survey.client_name)}
+                      className="flex-1 min-h-[44px] bg-gray-700 hover:bg-red-900/60 border border-gray-600 hover:border-red-700 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-white touch-manipulation"
+                    >
+                      Clear
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1418,12 +1454,22 @@ function App() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <button
-                            onClick={() => resendSurvey(survey.id)}
-                            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors text-white"
-                          >
-                            📧 Resend
-                          </button>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => resendSurvey(survey.id)}
+                              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors text-white"
+                            >
+                              📧 Resend
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => clearPendingSurvey(survey.id, survey.client_name)}
+                              className="bg-gray-700 hover:bg-red-900/60 border border-gray-600 hover:border-red-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors text-white"
+                            >
+                              Clear
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
