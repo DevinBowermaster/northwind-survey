@@ -3,7 +3,7 @@ const IS_DEV = self.location.hostname === 'localhost' || self.location.hostname 
 
 // Bump CACHE_NAME whenever you deploy a new frontend build to force clients
 // to pick up the latest HTML/JS instead of a stale cached shell.
-const CACHE_NAME = 'northwind-survey-v2';
+const CACHE_NAME = 'northwind-survey-v3';
 const STATIC_CACHE_URLS = [
   '/',
   '/index.html',

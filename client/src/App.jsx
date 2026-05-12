@@ -1407,7 +1407,7 @@ function App() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Sent Date</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Days Pending</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Survey Type</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">Actions</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider min-w-[220px]">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">
@@ -1453,19 +1453,19 @@ function App() {
                             {survey.survey_type}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className="flex flex-wrap justify-end gap-2">
+                        <td className="px-6 py-4 text-right align-middle min-w-[220px]">
+                          <div className="inline-flex flex-nowrap items-center justify-end gap-2 shrink-0">
                             <button
                               type="button"
                               onClick={() => resendSurvey(survey.id)}
-                              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors text-white"
+                              className="shrink-0 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors text-white"
                             >
                               📧 Resend
                             </button>
                             <button
                               type="button"
                               onClick={() => clearPendingSurvey(survey.id, survey.client_name)}
-                              className="bg-gray-700 hover:bg-red-900/60 border border-gray-600 hover:border-red-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors text-white"
+                              className="shrink-0 bg-gray-700 hover:bg-red-900/60 border border-gray-600 hover:border-red-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors text-white"
                             >
                               Clear
                             </button>
