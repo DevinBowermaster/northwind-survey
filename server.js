@@ -4,6 +4,7 @@ const cors = require('cors');
 const crypto = require('crypto');
 const db = require('./database');
 const emailService = require('./email-service');
+const { buildSurveyLink } = require('./survey-link');
 const { startScheduler } = require('./scheduler');
 const contractUsageRoutes = require('./backend/routes/contract-usage');
 const { migrateAddArchive } = require('./migrate-add-archive');
@@ -737,10 +738,14 @@ app.post('/api/surveys/:id/resend', async (req, res) => {
       return res.status(400).json({ error: 'Client has no email address' });
     }
     
-    // Use existing token
-    const frontendUrl = process.env.FRONTEND_URL || 'https://northwind-survey-frontend.onrender.com';
-    const surveyLink = `${frontendUrl}/survey/${survey.token}`;
-    
+    // Use existing token — canonical URL (ignores bad FRONTEND_URL placeholders)
+    let surveyLink;
+    try {
+      surveyLink = buildSurveyLink(survey.token);
+    } catch (e) {
+      return res.status(400).json({ error: 'Survey has an invalid token; cannot resend.' });
+    }
+
     // Resend email
     await emailService.sendSurveyEmail(client, survey.survey_type || 'Quarterly', surveyLink);
     
@@ -816,11 +821,9 @@ app.post('/api/surveys/send/:clientId', async (req, res) => {
       INSERT INTO surveys (client_id, token, survey_type, sent_date)
       VALUES (?, ?, ?, ?)
     `).run(client.id, token, selectedSurveyType, nowIso);
-    
-    // Use frontend URL from environment or default
-    const frontendUrl = process.env.FRONTEND_URL || 'https://northwind-survey-frontend.onrender.com';
-    const surveyLink = `${frontendUrl}/survey/${token}`;
-    
+
+    const surveyLink = buildSurveyLink(token);
+
     await emailService.sendSurveyEmail(client, selectedSurveyType, surveyLink);
     
     db.prepare("UPDATE clients SET last_survey = ? WHERE id = ?").run(nowIso, client.id);

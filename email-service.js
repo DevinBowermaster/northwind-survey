@@ -1,5 +1,6 @@
 require('dotenv').config();
 const nodemailer = require('nodemailer');
+const { normalizeSurveyLink, buildSurveyLink } = require('./survey-link');
 
 // AWS SES SMTP transporter (uses env: SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASSWORD)
 function getTransporter() {
@@ -21,10 +22,13 @@ function getTransporter() {
 // Send a survey email via AWS SES SMTP
 async function sendSurveyEmail(clientInfo, surveyType = 'Quarterly', surveyLink) {
   try {
+    const surveyUrl = normalizeSurveyLink(surveyLink);
+
     console.log('📧 Preparing to send email...');
     console.log('   Client:', clientInfo.name);
     console.log('   Email:', clientInfo.email);
-    console.log('   Survey Link:', surveyLink);
+    console.log('   Survey Link (raw):', surveyLink);
+    console.log('   Survey Link (normalized):', surveyUrl);
 
     const fromEmail = process.env.SMTP_FROM_EMAIL;
     const fromName = process.env.SMTP_FROM_NAME || 'Northwind MSP';
@@ -32,8 +36,7 @@ async function sendSurveyEmail(clientInfo, surveyType = 'Quarterly', surveyLink)
       throw new Error('Missing SMTP configuration. Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM_EMAIL in .env');
     }
 
-    const surveyUrl = surveyLink;
-    const surveyToken = surveyUrl.split('/survey/')[1];
+    const surveyToken = surveyUrl.split('/survey/').pop() || '';
     console.log('   Survey Token:', surveyToken);
 
     const emailSubject = `${surveyType} Survey - Northwind IT Services`;
@@ -133,8 +136,7 @@ async function sendSurveysToManagedClients(clients) {
     try {
       const crypto = require('crypto');
       const token = crypto.randomBytes(32).toString('hex');
-      const frontendUrl = process.env.FRONTEND_URL || 'https://northwind-survey-frontend.onrender.com';
-      const surveyLink = `${frontendUrl}/survey/${token}`;
+      const surveyLink = buildSurveyLink(token);
 
       const db = require('./database');
       const sentAtIso = new Date().toISOString();
@@ -171,8 +173,7 @@ async function sendTestEmail(toEmail) {
 
     const crypto = require('crypto');
     const token = crypto.randomBytes(32).toString('hex');
-    const frontendUrl = process.env.FRONTEND_URL || 'https://northwind-survey-frontend.onrender.com';
-    const surveyLink = `${frontendUrl}/survey/${token}`;
+    const surveyLink = buildSurveyLink(token);
 
     const result = await sendSurveyEmail(testClient, 'Test', surveyLink);
     console.log('✅ Test email sent successfully!');

@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const db = require('./database');
 const emailService = require('./email-service');
+const { buildSurveyLink } = require('./survey-link');
 const crypto = require('crypto');
 
 // Run every day at 9:00 AM (Boise time by default)
@@ -40,10 +41,7 @@ const startScheduler = () => {
             VALUES (?, ?, ?, ?)
           `).run(client.id, token, 'Quarterly', sentAtIso);
           
-          // Survey link must match manual sends (server.js) — never hardcode localhost in production
-          const frontendUrl =
-            process.env.FRONTEND_URL || 'https://northwind-survey-frontend.onrender.com';
-          const surveyLink = `${frontendUrl.replace(/\/$/, '')}/survey/${token}`;
+          const surveyLink = buildSurveyLink(token);
           await emailService.sendSurveyEmail(client, 'Quarterly', surveyLink);
           
           // Update client record - use their survey_frequency (30/60/90) or default to 90
