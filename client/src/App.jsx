@@ -310,6 +310,29 @@ function App() {
     }
   };
 
+  const deleteEmployeeAdmin = async (id, name) => {
+    if (!userEmail) return;
+    if (!confirm(`Delete employee "${name}"? Any clients assigned to them will become Unassigned.`)) return;
+    try {
+      const url = `${API_URL}/api/employees/${id}?userEmail=${encodeURIComponent(userEmail)}`;
+      const res = await fetch(url, {
+        method: 'DELETE',
+        headers: adminFetchHeaders(),
+        body: JSON.stringify({ userEmail, userName })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 403) {
+        alert('❌ Admin access required');
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || 'Delete failed');
+      fetchEmployeesAdmin();
+      fetchMaintenanceData();
+    } catch (err) {
+      alert(err.message || 'Failed to delete employee');
+    }
+  };
+
   const toggleContractClient = (clientId) => {
     setExpandedContractClients(prev => {
       const newSet = new Set(prev);
@@ -1828,6 +1851,7 @@ function App() {
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Name</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Active</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-300 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
@@ -1854,6 +1878,15 @@ function App() {
                           />
                           Active
                         </label>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => deleteEmployeeAdmin(emp.id, emp.name)}
+                          className="text-sm font-medium text-red-400 hover:text-red-300 px-2 py-1 rounded"
+                        >
+                          Delete
+                        </button>
                       </td>
                     </tr>
                   ))}

@@ -296,6 +296,35 @@ app.patch('/api/employees/:id', isAdmin, (req, res) => {
   }
 });
 
+// Remove employee; clears maintenance assignment on any client using this employee (admin only)
+app.delete('/api/employees/:id', isAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
+    const existing = db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+
+    const nowIso = new Date().toISOString();
+    const run = db.transaction(() => {
+      db.prepare(
+        'UPDATE clients SET maintenance_employee_id = NULL, updated_at = ? WHERE maintenance_employee_id = ?'
+      ).run(nowIso, id);
+      db.prepare('DELETE FROM employees WHERE id = ?').run(id);
+    });
+    run();
+
+    logAuditEvent(req.userEmail, req.userName, 'employee_deleted', 'employee', id, existing, null);
+    res.json({ success: true, message: 'Employee removed. Related client assignments were cleared.' });
+  } catch (error) {
+    console.error('Error deleting employee:', error);
+    res.status(500).json({ error: 'Failed to delete employee' });
+  }
+});
+
 // Assign maintenance employee to a managed client (admin only). Pass maintenance_employee_id: null for Unassigned.
 app.patch('/api/maintenance/clients/:clientId', isAdmin, (req, res) => {
   try {
