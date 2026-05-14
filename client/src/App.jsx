@@ -71,6 +71,7 @@ function App() {
   const [maintenanceEmployees, setMaintenanceEmployees] = useState([]);
   const [maintenanceLoading, setMaintenanceLoading] = useState(false);
   const [maintenanceSavingId, setMaintenanceSavingId] = useState(null);
+  const [maintenanceEmployeeFilter, setMaintenanceEmployeeFilter] = useState('all');
   const [employeesAdmin, setEmployeesAdmin] = useState([]);
   const [employeesAdminLoading, setEmployeesAdminLoading] = useState(false);
   const [newEmployeeName, setNewEmployeeName] = useState('');
@@ -1668,6 +1669,22 @@ function App() {
   };
 
   const renderMaintenance = () => {
+    const employeesSortedForFilter = [...maintenanceEmployees].sort((a, b) =>
+      a.name.localeCompare(b.name, 'en', { sensitivity: 'base' })
+    );
+    let displayedClients = [...maintenanceClients];
+    if (maintenanceEmployeeFilter === 'unassigned') {
+      displayedClients = displayedClients.filter((c) => !c.maintenance_employee_id);
+    } else if (maintenanceEmployeeFilter !== 'all') {
+      const fid = parseInt(maintenanceEmployeeFilter, 10);
+      if (!Number.isNaN(fid)) {
+        displayedClients = displayedClients.filter((c) => c.maintenance_employee_id === fid);
+      }
+    }
+    displayedClients.sort((a, b) =>
+      a.name.localeCompare(b.name, 'en', { sensitivity: 'base' })
+    );
+
     return (
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -1711,8 +1728,40 @@ function App() {
           </div>
         ) : (
           <>
+            <div className="mb-4 flex flex-col lg:flex-row lg:items-end gap-4">
+              <div className="flex-1 min-w-0 max-w-md">
+                <label htmlFor="maintenance-employee-filter" className="block text-sm text-gray-400 mb-1">
+                  Filter by technician
+                </label>
+                <select
+                  id="maintenance-employee-filter"
+                  value={maintenanceEmployeeFilter}
+                  onChange={(e) => setMaintenanceEmployeeFilter(e.target.value)}
+                  className="w-full bg-gray-800 text-white border border-gray-600 rounded-lg px-3 py-2.5 focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="all">All technicians</option>
+                  <option value="unassigned">Unassigned only</option>
+                  {employeesSortedForFilter.map((emp) => (
+                    <option key={emp.id} value={String(emp.id)}>
+                      {emp.name}
+                      {emp.active === 0 ? ' (inactive)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-sm text-gray-500 lg:pb-2">
+                Showing {displayedClients.length} of {maintenanceClients.length} clients · sorted A–Z by client name
+              </p>
+            </div>
+
+            {displayedClients.length === 0 ? (
+              <div className="bg-gray-800 rounded-lg p-8 border border-gray-700 text-center text-gray-400">
+                No clients match this technician filter. Try &quot;All technicians&quot; or another name.
+              </div>
+            ) : (
+              <>
             <div className="md:hidden space-y-3">
-              {maintenanceClients.map((c) => (
+              {displayedClients.map((c) => (
                 <div key={c.id} className="bg-gray-800 rounded-lg border border-gray-700 p-4">
                   <div className="font-medium text-white mb-2">{c.name}</div>
                   {isAdmin ? (
@@ -1755,7 +1804,7 @@ function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">
-                    {maintenanceClients.map((c) => (
+                    {displayedClients.map((c) => (
                       <tr key={c.id} className="hover:bg-gray-700 transition-colors">
                         <td className="px-6 py-4 text-sm font-medium text-white">{c.name}</td>
                         <td className="px-6 py-4">
@@ -1789,6 +1838,8 @@ function App() {
                 </table>
               </div>
             </div>
+              </>
+            )}
           </>
         )}
       </div>
