@@ -67,6 +67,13 @@ function App() {
   const [contractHealthSortBy, setContractHealthSortBy] = useState('name'); // 'name' or 'usage'
   const RESPONSES_PER_PAGE = 10;
   const clientScrollPositionRef = useRef(0);
+  const [maintenanceClients, setMaintenanceClients] = useState([]);
+  const [maintenanceEmployees, setMaintenanceEmployees] = useState([]);
+  const [maintenanceLoading, setMaintenanceLoading] = useState(false);
+  const [maintenanceSavingId, setMaintenanceSavingId] = useState(null);
+  const [employeesAdmin, setEmployeesAdmin] = useState([]);
+  const [employeesAdminLoading, setEmployeesAdminLoading] = useState(false);
+  const [newEmployeeName, setNewEmployeeName] = useState('');
 
   // Admin email list (must match server.js)
   const ADMIN_EMAILS = ['wylie@northwind.us', 'devin@northwind.us'];
@@ -129,6 +136,18 @@ function App() {
     }
   }, [activeView]);
 
+  useEffect(() => {
+    if (activeView === 'maintenance') {
+      fetchMaintenanceData();
+    }
+  }, [activeView]);
+
+  useEffect(() => {
+    if (activeView === 'employees' && isAdmin) {
+      fetchEmployeesAdmin();
+    }
+  }, [activeView, isAdmin]);
+
   const fetchContractHealth = async () => {
     try {
       setContractHealthLoading(true);
@@ -146,6 +165,148 @@ function App() {
       setContractHealthData([]);
     } finally {
       setContractHealthLoading(false);
+    }
+  };
+
+  const adminFetchHeaders = () => ({
+    'Content-Type': 'application/json',
+    ...(userEmail
+      ? { 'X-User-Email': userEmail, 'X-User-Name': userName || userEmail }
+      : {})
+  });
+
+  const fetchMaintenanceData = async () => {
+    setMaintenanceLoading(true);
+    try {
+      const [mRes, eRes] = await Promise.all([
+        fetch(`${API_URL}/api/maintenance/managed`),
+        fetch(`${API_URL}/api/employees`)
+      ]);
+      const mJson = await mRes.json().catch(() => ({}));
+      const eJson = await eRes.json().catch(() => ({}));
+      if (!mRes.ok) throw new Error(mJson.error || 'Failed to load maintenance');
+      if (!eRes.ok) throw new Error(eJson.error || 'Failed to load employees');
+      setMaintenanceClients(mJson.clients || []);
+      setMaintenanceEmployees(eJson.employees || []);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to load maintenance tab');
+      setMaintenanceClients([]);
+      setMaintenanceEmployees([]);
+    } finally {
+      setMaintenanceLoading(false);
+    }
+  };
+
+  const fetchEmployeesAdmin = async () => {
+    if (!userEmail) return;
+    setEmployeesAdminLoading(true);
+    try {
+      const url = `${API_URL}/api/employees/all?userEmail=${encodeURIComponent(userEmail)}`;
+      const res = await fetch(url, { headers: adminFetchHeaders() });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 403) {
+        alert('❌ Admin access required');
+        setEmployeesAdmin([]);
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || 'Failed to load employees');
+      setEmployeesAdmin(data.employees || []);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || 'Failed to load employees');
+    } finally {
+      setEmployeesAdminLoading(false);
+    }
+  };
+
+  const updateMaintenanceAssignment = async (clientId, maintenanceEmployeeId) => {
+    if (!userEmail) {
+      alert('Sign in to save assignments.');
+      return;
+    }
+    setMaintenanceSavingId(clientId);
+    try {
+      const body = {
+        userEmail,
+        userName,
+        maintenance_employee_id:
+          maintenanceEmployeeId === '' || maintenanceEmployeeId == null
+            ? null
+            : Number(maintenanceEmployeeId)
+      };
+      const res = await fetch(`${API_URL}/api/maintenance/clients/${clientId}`, {
+        method: 'PATCH',
+        headers: adminFetchHeaders(),
+        body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 403) {
+        alert('❌ Admin access required');
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+      setMaintenanceClients((prev) =>
+        prev.map((c) =>
+          c.id === data.client?.id
+            ? {
+                ...c,
+                maintenance_employee_id: data.client.maintenance_employee_id,
+                maintenance_employee_name: data.client.maintenance_employee_name
+              }
+            : c
+        )
+      );
+    } catch (err) {
+      alert(err.message || 'Failed to save');
+      fetchMaintenanceData();
+    } finally {
+      setMaintenanceSavingId(null);
+    }
+  };
+
+  const createEmployeeAdmin = async () => {
+    if (!newEmployeeName.trim()) return;
+    if (!userEmail) return;
+    try {
+      const res = await fetch(`${API_URL}/api/employees`, {
+        method: 'POST',
+        headers: adminFetchHeaders(),
+        body: JSON.stringify({ name: newEmployeeName.trim(), userEmail, userName })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 403) {
+        alert('❌ Admin access required');
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || 'Failed to add employee');
+      setNewEmployeeName('');
+      fetchEmployeesAdmin();
+      fetchMaintenanceData();
+    } catch (err) {
+      alert(err.message || 'Failed to add employee');
+    }
+  };
+
+  const patchEmployeeAdmin = async (id, payload) => {
+    if (!userEmail) return;
+    try {
+      const res = await fetch(`${API_URL}/api/employees/${id}`, {
+        method: 'PATCH',
+        headers: adminFetchHeaders(),
+        body: JSON.stringify({ ...payload, userEmail, userName })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 403) {
+        alert('❌ Admin access required');
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || 'Update failed');
+      fetchEmployeesAdmin();
+      fetchMaintenanceData();
+    } catch (err) {
+      alert(err.message || 'Failed to update employee');
+      fetchEmployeesAdmin();
     }
   };
 
@@ -1483,6 +1644,228 @@ function App() {
     );
   };
 
+  const renderMaintenance = () => {
+    return (
+      <div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-bold text-white mb-1 sm:mb-2">Maintenance</h2>
+            <p className="text-gray-400 text-sm sm:text-base">
+              Managed service clients and assigned maintenance technician. New managed clients appear here automatically after company sync.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setActiveView('employees')}
+                className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-lg font-medium bg-gray-700 hover:bg-gray-600 text-white touch-manipulation"
+              >
+                Manage employees
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={fetchMaintenanceData}
+              className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-lg font-medium bg-blue-600 hover:bg-blue-700 text-white touch-manipulation"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {!isAdmin && (
+          <p className="text-sm text-amber-200/90 bg-amber-900/30 border border-amber-800 rounded-lg px-4 py-3 mb-4">
+            Only administrators can change assignments. You can view who is assigned to each client.
+          </p>
+        )}
+
+        {maintenanceLoading ? (
+          <div className="text-center text-gray-400 py-12">Loading…</div>
+        ) : maintenanceClients.length === 0 ? (
+          <div className="bg-gray-800 rounded-lg p-12 border border-gray-700 text-center text-gray-400">
+            No managed service clients found. Run a company sync from Client Management if this is unexpected.
+          </div>
+        ) : (
+          <>
+            <div className="md:hidden space-y-3">
+              {maintenanceClients.map((c) => (
+                <div key={c.id} className="bg-gray-800 rounded-lg border border-gray-700 p-4">
+                  <div className="font-medium text-white mb-2">{c.name}</div>
+                  {isAdmin ? (
+                    <select
+                      className="w-full bg-gray-700 text-white border border-gray-600 rounded-lg px-3 py-2"
+                      value={c.maintenance_employee_id ?? ''}
+                      disabled={maintenanceSavingId === c.id}
+                      onChange={(e) => updateMaintenanceAssignment(c.id, e.target.value)}
+                    >
+                      <option value="">Unassigned</option>
+                      {maintenanceEmployees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.name}
+                          {emp.active === 0 ? ' (inactive)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="text-gray-300">
+                      {c.maintenance_employee_name || 'Unassigned'}
+                      {c.maintenance_employee_id && c.maintenance_employee_active === 0 ? (
+                        <span className="text-amber-400 text-sm ml-1">(inactive)</span>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-700">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                        Client
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                        Maintenance technician
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-700">
+                    {maintenanceClients.map((c) => (
+                      <tr key={c.id} className="hover:bg-gray-700 transition-colors">
+                        <td className="px-6 py-4 text-sm font-medium text-white">{c.name}</td>
+                        <td className="px-6 py-4">
+                          {isAdmin ? (
+                            <select
+                              className="w-full max-w-md bg-gray-700 text-white border border-gray-600 rounded-lg px-3 py-2"
+                              value={c.maintenance_employee_id ?? ''}
+                              disabled={maintenanceSavingId === c.id}
+                              onChange={(e) => updateMaintenanceAssignment(c.id, e.target.value)}
+                            >
+                              <option value="">Unassigned</option>
+                              {maintenanceEmployees.map((emp) => (
+                                <option key={emp.id} value={emp.id}>
+                                  {emp.name}
+                                  {emp.active === 0 ? ' (inactive)' : ''}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="text-gray-200">
+                              {c.maintenance_employee_name || 'Unassigned'}
+                              {c.maintenance_employee_id && c.maintenance_employee_active === 0 ? (
+                                <span className="text-amber-400 text-sm ml-1">(inactive)</span>
+                              ) : null}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const renderEmployees = () => {
+    if (!isAdmin) {
+      return (
+        <div className="text-center text-gray-400 py-12">
+          Admin access required to manage the employee roster.
+        </div>
+      );
+    }
+    return (
+      <div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-bold text-white mb-1 sm:mb-2">Employees</h2>
+            <p className="text-gray-400 text-sm sm:text-base">
+              Names are saved in title case. These people appear in the Maintenance tab assignment dropdown (active only for new assignments).
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveView('maintenance')}
+            className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-lg font-medium bg-gray-700 hover:bg-gray-600 text-white touch-manipulation"
+          >
+            Back to Maintenance
+          </button>
+        </div>
+
+        <div className="bg-gray-800 rounded-lg border border-gray-700 p-4 mb-6">
+          <p className="text-sm text-gray-400 mb-3">Add employee</p>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="text"
+              value={newEmployeeName}
+              onChange={(e) => setNewEmployeeName(e.target.value)}
+              placeholder="Full name"
+              className="flex-1 bg-gray-700 text-white border border-gray-600 rounded-lg px-3 py-2"
+            />
+            <button
+              type="button"
+              onClick={createEmployeeAdmin}
+              className="min-h-[44px] px-4 py-2 rounded-lg font-medium bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Add
+            </button>
+          </div>
+        </div>
+
+        {employeesAdminLoading ? (
+          <div className="text-center text-gray-400 py-12">Loading…</div>
+        ) : (
+          <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-700">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase">Active</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-700">
+                  {employeesAdmin.map((emp) => (
+                    <tr key={emp.id}>
+                      <td className="px-4 py-3">
+                        <input
+                          type="text"
+                          defaultValue={emp.name}
+                          key={`${emp.id}-${emp.name}`}
+                          className="w-full max-w-xs bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-sm"
+                          onBlur={(e) => {
+                            const v = e.target.value.trim();
+                            if (v && v !== emp.name) patchEmployeeAdmin(emp.id, { name: v });
+                          }}
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <label className="inline-flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!!emp.active}
+                            onChange={(e) => patchEmployeeAdmin(emp.id, { active: e.target.checked })}
+                          />
+                          Active
+                        </label>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderArchives = () => {
     const toggleArchiveSection = (key) => {
       setExpandedArchives(prev => {
@@ -2696,6 +3079,28 @@ function App() {
             Clients
           </button>
           <button
+            onClick={() => setActiveView('maintenance')}
+            className={`min-h-[44px] px-3 py-2.5 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap touch-manipulation shrink-0 ${
+              activeView === 'maintenance'
+                ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Maintenance
+          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setActiveView('employees')}
+              className={`min-h-[44px] px-3 py-2.5 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap touch-manipulation shrink-0 ${
+                activeView === 'employees'
+                  ? 'bg-gray-900 text-blue-400 border-b-2 border-blue-400'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Employees
+            </button>
+          )}
+          <button
             onClick={() => setActiveView('responses')}
             className={`min-h-[44px] px-3 py-2.5 sm:px-6 sm:py-3 font-medium transition-colors whitespace-nowrap touch-manipulation shrink-0 ${
               activeView === 'responses' 
@@ -2767,6 +3172,8 @@ function App() {
       <main className="p-3 sm:p-6">
         {activeView === 'dashboard' && renderDashboard()}
         {activeView === 'clients' && renderClients()}
+        {activeView === 'maintenance' && renderMaintenance()}
+        {activeView === 'employees' && renderEmployees()}
         {activeView === 'responses' && renderResponses()}
         {activeView === 'pending' && renderPendingSurveys()}
         {activeView === 'archives' && renderArchives()}

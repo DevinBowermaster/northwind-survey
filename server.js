@@ -12,6 +12,7 @@ const { migrateContractUsage } = require('./backend/migrate-contract-usage');
 const { migrateAddMonthlyRevenue } = require('./backend/migrate-add-monthly-revenue');
 const { migrateAddOverageAmount } = require('./backend/migrate-add-overage-amount');
 const { migrateContactsCompanyAutotaskId } = require('./backend/migrate-contacts-company-autotask-id');
+const { migrateEmployeesAndMaintenance } = require('./migrate-employees-maintenance');
 const { syncContractUsage } = require('./backend/sync-contract-health');
 
 const app = express();
@@ -48,6 +49,18 @@ function isAdmin(req, res, next) {
   next();
 }
 
+/** Title-case each word for consistent employee display and matching. */
+function normalizeEmployeeName(raw) {
+  if (raw == null || typeof raw !== 'string') return '';
+  const t = raw.trim().replace(/\s+/g, ' ');
+  if (!t) return '';
+  return t
+    .split(/\s+/)
+    .map((w) => (w.length ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''))
+    .filter(Boolean)
+    .join(' ');
+}
+
 // Audit logging function
 function logAuditEvent(userEmail, userName, action, entityType, entityId, oldValue, newValue) {
   try {
@@ -76,6 +89,7 @@ try {
   migrateAddMonthlyRevenue();
   migrateAddOverageAmount();
   migrateContactsCompanyAutotaskId();
+  migrateEmployeesAndMaintenance(db);
 } catch (err) {
   console.error('Error running startup migrations:', err);
 }
@@ -156,6 +170,191 @@ app.get('/api/clients/type/:type', (req, res) => {
   } catch (error) {
     console.error('Database error:', error);
     res.status(500).json({ error: 'Failed to fetch clients' });
+  }
+});
+
+// Managed clients with maintenance assignment (all users; sync never clears maintenance_employee_id)
+app.get('/api/maintenance/managed', (req, res) => {
+  try {
+    const rows = db
+      .prepare(`
+        SELECT
+          c.id,
+          c.name,
+          c.autotask_id,
+          c.maintenance_employee_id,
+          e.name AS maintenance_employee_name,
+          e.active AS maintenance_employee_active
+        FROM clients c
+        LEFT JOIN employees e ON e.id = c.maintenance_employee_id
+        WHERE c.company_type = 'managed'
+        ORDER BY c.name ASC
+      `)
+      .all();
+    res.json({ clients: rows });
+  } catch (error) {
+    console.error('Error fetching maintenance managed clients:', error);
+    res.status(500).json({ error: 'Failed to fetch maintenance data' });
+  }
+});
+
+// Employees available for assignment dropdown (active + anyone currently assigned to a client)
+app.get('/api/employees', (req, res) => {
+  try {
+    const rows = db
+      .prepare(`
+        SELECT DISTINCT e.id, e.name, e.active, e.sort_order
+        FROM employees e
+        WHERE e.active = 1
+           OR e.id IN (SELECT maintenance_employee_id FROM clients WHERE maintenance_employee_id IS NOT NULL)
+        ORDER BY e.sort_order ASC, e.name ASC
+      `)
+      .all();
+    res.json({ employees: rows });
+  } catch (error) {
+    console.error('Error fetching employees:', error);
+    res.status(500).json({ error: 'Failed to fetch employees' });
+  }
+});
+
+// All employees for admin roster (including inactive)
+app.get('/api/employees/all', isAdmin, (req, res) => {
+  try {
+    const rows = db
+      .prepare(`SELECT * FROM employees ORDER BY sort_order ASC, name ASC`)
+      .all();
+    res.json({ employees: rows });
+  } catch (error) {
+    console.error('Error fetching all employees:', error);
+    res.status(500).json({ error: 'Failed to fetch employees' });
+  }
+});
+
+app.post('/api/employees', isAdmin, (req, res) => {
+  try {
+    const name = normalizeEmployeeName(req.body?.name);
+    if (!name) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+    const maxSort = db.prepare('SELECT COALESCE(MAX(sort_order), 0) as m FROM employees').get();
+    const info = db
+      .prepare(
+        `INSERT INTO employees (name, active, sort_order) VALUES (?, 1, ?)`
+      )
+      .run(name, (maxSort.m || 0) + 1);
+    logAuditEvent(req.userEmail, req.userName, 'employee_created', 'employee', info.lastInsertRowid, null, { name });
+    const row = db.prepare('SELECT * FROM employees WHERE id = ?').get(info.lastInsertRowid);
+    res.json({ success: true, employee: row });
+  } catch (error) {
+    if (error && error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'An employee with that name already exists' });
+    }
+    console.error('Error creating employee:', error);
+    res.status(500).json({ error: 'Failed to create employee' });
+  }
+});
+
+app.patch('/api/employees/:id', isAdmin, (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
+    const existing = db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+    const { name, active } = req.body || {};
+    const updates = [];
+    const params = [];
+    if (name !== undefined) {
+      const n = normalizeEmployeeName(name);
+      if (!n) {
+        return res.status(400).json({ error: 'Name cannot be empty' });
+      }
+      updates.push('name = ?');
+      params.push(n);
+    }
+    if (active !== undefined) {
+      updates.push('active = ?');
+      params.push(active ? 1 : 0);
+    }
+    if (!updates.length) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    params.push(id);
+    db.prepare(`UPDATE employees SET ${updates.join(', ')} WHERE id = ?`).run(...params);
+    logAuditEvent(req.userEmail, req.userName, 'employee_updated', 'employee', id, existing, req.body);
+    const row = db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
+    res.json({ success: true, employee: row });
+  } catch (error) {
+    if (error && error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: 'An employee with that name already exists' });
+    }
+    console.error('Error updating employee:', error);
+    res.status(500).json({ error: 'Failed to update employee' });
+  }
+});
+
+// Assign maintenance employee to a managed client (admin only). Pass maintenance_employee_id: null for Unassigned.
+app.patch('/api/maintenance/clients/:clientId', isAdmin, (req, res) => {
+  try {
+    const clientId = req.params.clientId;
+    const { maintenance_employee_id } = req.body || {};
+
+    const client = db.prepare('SELECT * FROM clients WHERE id = ? OR autotask_id = ?').get(clientId, clientId);
+    if (!client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+    if (client.company_type !== 'managed') {
+      return res.status(400).json({ error: 'Only managed service clients can have a maintenance assignment' });
+    }
+
+    let empId = null;
+    if (maintenance_employee_id !== null && maintenance_employee_id !== undefined && maintenance_employee_id !== '') {
+      empId = parseInt(maintenance_employee_id, 10);
+      if (Number.isNaN(empId)) {
+        return res.status(400).json({ error: 'Invalid maintenance_employee_id' });
+      }
+      const emp = db.prepare('SELECT id, active FROM employees WHERE id = ?').get(empId);
+      if (!emp) {
+        return res.status(404).json({ error: 'Employee not found' });
+      }
+      if (!emp.active) {
+        return res.status(400).json({ error: 'Cannot assign an inactive employee' });
+      }
+    }
+
+    const nowIso = new Date().toISOString();
+    db.prepare(
+      `UPDATE clients SET maintenance_employee_id = ?, updated_at = ? WHERE id = ?`
+    ).run(empId, nowIso, client.id);
+
+    logAuditEvent(
+      req.userEmail,
+      req.userName,
+      'maintenance_assigned',
+      'client',
+      client.id,
+      { maintenance_employee_id: client.maintenance_employee_id },
+      { maintenance_employee_id: empId }
+    );
+
+    const row = db
+      .prepare(
+        `
+        SELECT c.id, c.name, c.maintenance_employee_id, e.name AS maintenance_employee_name
+        FROM clients c
+        LEFT JOIN employees e ON e.id = c.maintenance_employee_id
+        WHERE c.id = ?
+      `
+      )
+      .get(client.id);
+
+    res.json({ success: true, client: row });
+  } catch (error) {
+    console.error('Error updating maintenance assignment:', error);
+    res.status(500).json({ error: 'Failed to update assignment' });
   }
 });
 
