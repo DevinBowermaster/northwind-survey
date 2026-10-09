@@ -1,12 +1,19 @@
+require('dotenv').config();
 const axios = require('axios');
 
-// Autotask Configuration
+// Autotask Configuration -- set these in Render > Environment (or a local .env). Never commit them.
 const AUTOTASK_CONFIG = {
-  baseURL: 'https://webservices15.autotask.net/atservicesrest',
-  username: 'du2v2c35bs3ucjl@northwind.us',
-  apiKey: 'rQ#3D*5y@jX6P$1i8Yw~Bm*9b',
-  integrationCode: 'DUROCZHIJMWB4FH4VH2FQ4VKSKY'
+  baseURL: process.env.AUTOTASK_BASE_URL,
+  username: process.env.AUTOTASK_USERNAME,
+  apiKey: process.env.AUTOTASK_SECRET,
+  integrationCode: process.env.AUTOTASK_INTEGRATION_CODE
 };
+
+const missingAutotaskVars = ['AUTOTASK_BASE_URL', 'AUTOTASK_USERNAME', 'AUTOTASK_SECRET', 'AUTOTASK_INTEGRATION_CODE']
+  .filter((name) => !process.env[name]);
+if (missingAutotaskVars.length) {
+  console.warn('Autotask sync disabled until these env vars are set: ' + missingAutotaskVars.join(', '));
+}
 
 // Create Axios instance with auth
 const autotaskAPI = axios.create({
